@@ -1,0 +1,107 @@
+@import "tailwindcss";
+
+@layer utilities {
+  /* Stroked Outline Typography Utilities */
+  .text-stroke-huge {
+    -webkit-text-stroke: 2.5px #0F172A;
+    color: transparent;
+    transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .text-stroke-huge:hover {
+    color: #0F172A;
+    -webkit-text-stroke: 0px transparent;
+    filter: drop-shadow(0 15px 25px rgba(15, 23, 42, 0.25));
+  }
+
+  .text-stroke-blue {
+    -webkit-text-stroke: 2.5px #2563EB;
+    color: transparent;
+    transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .text-stroke-blue:hover {
+    color: #2563EB;
+    -webkit-text-stroke: 0px transparent;
+    filter: drop-shadow(0 15px 30px rgba(37, 99, 235, 0.4));
+  }
+
+  .text-stroke-gold {
+    -webkit-text-stroke: 2px #D97706;
+    color: transparent;
+    transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .text-stroke-watermark {
+    -webkit-text-stroke: 1.5px rgba(15, 23, 42, 0.07);
+    color: transparent;
+  }
+
+  /* Shimmer Animated Luxury Gradient Text */
+  .text-gradient-shimmer {
+    background: linear-gradient(120deg, #0F172A 0%, #2563EB 40%, #1E3A8A 70%, #0F172A 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: textShimmer 5s ease-in-out infinite;
+  }
+
+  .text-gradient-gold {
+    background: linear-gradient(135deg, #D97706 0%, #F59E0B 50%, #B45309 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Premium Award-Winning Glassmorphic Cards */
+  .award-glass-card {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow: 0 30px 60px -15px rgba(15, 23, 42, 0.08);
+  }
+
+  .award-glass-card:hover {
+    box-shadow: 0 35px 70px -15px rgba(37, 99, 235, 0.18);
+    border-color: rgba(147, 197, 253, 0.9);
+  }
+}
+
+@keyframes textShimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Custom Background Light Theme */
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  background-color: #F8FAFC;
+  color: #334155;
+  overflow-x: hidden;
+  background-image: 
+    radial-gradient(circle at 10% 0%, rgba(37, 99, 235, 0.06) 0%, transparent 45%),
+    radial-gradient(circle at 90% 30%, rgba(217, 119, 6, 0.05) 0%, transparent 45%),
+    radial-gradient(circle at 50% 70%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+  background-attachment: fixed;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 9px;
+}
+::-webkit-scrollbar-track {
+  background: #F1F5F9;
+}
+::-webkit-scrollbar-thumb {
+  background: #94A3B8;
+  border-radius: 9999px;
+  border: 2px solid #F1F5F9;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #2563EB;
+}
+
+html {
+  scroll-behavior: smooth;
+}
