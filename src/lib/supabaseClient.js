@@ -9,12 +9,25 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 export const BUCKET_NAME = 'AWAHAAN';
 
 /**
+ * Helper to convert file to persistent Base64 Data URL
+ */
+function readFileAsDataURL(file) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
  * Upload an image file to Supabase Storage bucket 'AWAHAAN'
- * Returns the public URL of the uploaded image
+ * Returns the public URL or persistent Data URL of the uploaded image
  */
 export async function uploadImageToSupabase(file, folder = 'dignitaries') {
+  if (!file) return '';
+
   try {
-    const fileExt = file.name.split('.').pop();
+    const fileExt = file.name ? file.name.split('.').pop() : 'png';
     const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
 
     const { data, error } = await supabase.storage
@@ -24,19 +37,20 @@ export async function uploadImageToSupabase(file, folder = 'dignitaries') {
         upsert: true
       });
 
-    if (error) {
-      console.warn('Supabase storage upload fallback to local URL:', error.message);
-      // Fallback: Create local object URL if bucket requires auth policy
-      return URL.createObjectURL(file);
+    if (!error && data?.path) {
+      const { data: publicUrlData } = supabase.storage
+        .from(BUCKET_NAME)
+        .getPublicUrl(fileName);
+
+      if (publicUrlData && publicUrlData.publicUrl) {
+        return publicUrlData.publicUrl;
+      }
     }
 
-    const { data: publicUrlData } = supabase.storage
-      .from(BUCKET_NAME)
-      .getPublicUrl(fileName);
-
-    return publicUrlData.publicUrl;
+    // Fallback: Read as persistent Base64 Data URL so it persists permanently and displays on live UI
+    return await readFileAsDataURL(file);
   } catch (err) {
-    console.error('Error uploading file to Supabase:', err);
-    return URL.createObjectURL(file);
+    console.warn('Fallback to Base64 image encoding:', err);
+    return await readFileAsDataURL(file);
   }
 }

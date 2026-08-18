@@ -218,6 +218,24 @@ export default function DignitariesTab() {
                 onChange={(e) => setNewPerson({ ...newPerson, quote: e.target.value })}
                 className="px-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm italic"
               />
+
+              <div className="sm:col-span-2 flex items-center gap-4 bg-white p-3 rounded-2xl border border-slate-200">
+                <img src={newPerson.image} alt="Preview" className="w-12 h-12 rounded-full object-cover border" />
+                <label className="px-4 py-2 bg-slate-100 hover:bg-blue-600 hover:text-white text-slate-800 text-xs font-black rounded-full cursor-pointer transition-all flex items-center gap-1.5">
+                  <Upload size={14} /> Select Officer Photo Image
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      if (e.target.files[0]) {
+                        const url = await handlePhotoUpload(e.target.files[0], 'dignitaries');
+                        setNewPerson(prev => ({ ...prev, image: url }));
+                      }
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">
