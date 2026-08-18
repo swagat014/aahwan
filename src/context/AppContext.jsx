@@ -5,6 +5,13 @@ import { uploadImageToSupabase } from '../lib/supabaseClient';
 
 const AppContext = createContext();
 
+function sanitizePhotoUrl(url, fallback = '/assets/images/hero_sports_banner_1786976961106.png') {
+  if (!url || typeof url !== 'string' || url.startsWith('blob:')) {
+    return fallback;
+  }
+  return url;
+}
+
 export function AppProvider({ children }) {
   // Website General Settings State
   const [year, setYear] = useState(() => localStorage.getItem('aahwan_year') || localStorage.getItem('AWAHAAN_year') || '2026');
@@ -21,15 +28,41 @@ export function AppProvider({ children }) {
   const [statStreamsCount, setStatStreamsCount] = useState(() => localStorage.getItem('aahwan_stat_streams') || localStorage.getItem('AWAHAAN_stat_streams') || '4');
   const [statDaysCount, setStatDaysCount] = useState(() => localStorage.getItem('aahwan_stat_days') || localStorage.getItem('AWAHAAN_stat_days') || '3');
 
-  // Dynamic Data States
+  // Dynamic Data States (Sanitized against broken blob: URLs from Netlify/local storage)
   const [dignitaries, setDignitaries] = useState(() => {
     const saved = localStorage.getItem('aahwan_dignitaries') || localStorage.getItem('AWAHAAN_dignitaries');
-    return saved ? JSON.parse(saved) : initialDignitaries;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const sanitized = {};
+        Object.keys(parsed).forEach(tier => {
+          sanitized[tier] = (parsed[tier] || []).map(person => ({
+            ...person,
+            image: sanitizePhotoUrl(person.image, '/assets/images/gcek_principal_vp_1786977233454.png')
+          }));
+        });
+        return sanitized;
+      } catch (e) {
+        console.warn('Failed to parse dignitaries:', e);
+      }
+    }
+    return initialDignitaries;
   });
 
   const [sports, setSports] = useState(() => {
     const saved = localStorage.getItem('aahwan_sports') || localStorage.getItem('AWAHAAN_sports');
-    return saved ? JSON.parse(saved) : initialSports;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.map(s => ({
+          ...s,
+          image: sanitizePhotoUrl(s.image, '/assets/images/hero_sports_banner_1786976961106.png')
+        }));
+      } catch (e) {
+        console.warn('Failed to parse sports:', e);
+      }
+    }
+    return initialSports;
   });
 
   const [schedule, setSchedule] = useState(() => {
@@ -100,8 +133,19 @@ export function AppProvider({ children }) {
 
   // Photo Highlights Gallery State
   const [galleryPhotos, setGalleryPhotos] = useState(() => {
-    const saved = localStorage.getItem('AWAHAAN_gallery');
-    return saved ? JSON.parse(saved) : [
+    const saved = localStorage.getItem('aahwan_gallery') || localStorage.getItem('AWAHAAN_gallery');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return (parsed || []).map(p => ({
+          ...p,
+          image: sanitizePhotoUrl(p.image, '/assets/images/hero_sports_banner_1786976961106.png')
+        })).filter(p => p.image && !p.image.startsWith('blob:'));
+      } catch (e) {
+        console.warn('Failed to parse gallery photos:', e);
+      }
+    }
+    return [
       {
         id: 'gal-1',
         title: 'Athletics Track & 100m Sprint Heats',
