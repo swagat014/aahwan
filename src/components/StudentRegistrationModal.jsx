@@ -109,7 +109,7 @@ export default function StudentRegistrationModal() {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 select-none">
-        
+
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -137,7 +137,7 @@ export default function StudentRegistrationModal() {
 
           {!submittedReg ? (
             <form onSubmit={handleSubmit} className="space-y-6">
-              
+
               {/* Header */}
               <div className="text-center mb-6">
                 <div className="w-14 h-14 rounded-2xl bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center mb-3 mx-auto shadow-sm">
@@ -147,7 +147,7 @@ export default function StudentRegistrationModal() {
                   Student Sports Registration
                 </h3>
                 <p className="text-xs font-semibold text-slate-500 mt-1">
-                  AAHWAN {year} • {collegeName} {collegeLocation}
+                  AWAHAAN {year} • {collegeName} {collegeLocation}
                 </p>
               </div>
 
@@ -166,11 +166,10 @@ export default function StudentRegistrationModal() {
                       <div
                         key={div.id}
                         onClick={() => setFormData({ ...formData, gender: div.id })}
-                        className={`p-4 rounded-2xl border-2 text-center cursor-pointer transition-all flex flex-col items-center gap-1.5 ${
-                          isSelected
-                            ? `${div.activeColor} shadow-md font-black`
-                            : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-white'
-                        }`}
+                        className={`p-4 rounded-2xl border-2 text-center cursor-pointer transition-all flex flex-col items-center gap-1.5 ${isSelected
+                          ? `${div.activeColor} shadow-md font-black`
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-white'
+                          }`}
                       >
                         <span className="text-2xl">{div.icon}</span>
                         <span className="font-extrabold text-xs uppercase tracking-wider">{div.label}</span>
@@ -227,11 +226,10 @@ export default function StudentRegistrationModal() {
                           <div
                             key={b.code}
                             onClick={() => setFormData({ ...formData, branch: b.label })}
-                            className={`p-3 rounded-2xl border-2 text-center cursor-pointer transition-all ${
-                              isSelected
-                                ? 'bg-blue-600 text-white border-blue-600 shadow-md font-black'
-                                : 'bg-white text-slate-800 border-slate-200 hover:border-blue-300 font-extrabold'
-                            }`}
+                            className={`p-3 rounded-2xl border-2 text-center cursor-pointer transition-all ${isSelected
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-md font-black'
+                              : 'bg-white text-slate-800 border-slate-200 hover:border-blue-300 font-extrabold'
+                              }`}
                           >
                             <div className="text-lg mb-0.5">{b.icon}</div>
                             <div className="text-xs">{b.code}</div>
@@ -298,11 +296,10 @@ export default function StudentRegistrationModal() {
                       key={tab.id}
                       type="button"
                       onClick={() => setActiveCategory(tab.id)}
-                      className={`px-4 py-1.5 rounded-2xl font-black text-xs transition-all ${
-                        activeCategory === tab.id
-                          ? 'bg-blue-600 text-white shadow-md'
-                          : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
-                      }`}
+                      className={`px-4 py-1.5 rounded-2xl font-black text-xs transition-all ${activeCategory === tab.id
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
+                        }`}
                     >
                       {tab.label}
                     </button>
@@ -318,11 +315,10 @@ export default function StudentRegistrationModal() {
                       <div
                         key={s.id}
                         onClick={() => handleEventToggle(s.title)}
-                        className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between gap-2.5 ${
-                          isSelected
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-md font-bold'
-                            : 'bg-white text-slate-800 border-slate-200 hover:border-blue-300 font-bold'
-                        }`}
+                        className={`p-3 rounded-2xl border-2 cursor-pointer transition-all flex items-center justify-between gap-2.5 ${isSelected
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-md font-bold'
+                          : 'bg-white text-slate-800 border-slate-200 hover:border-blue-300 font-bold'
+                          }`}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
                           <span className="text-xl shrink-0">{icon}</span>
@@ -334,9 +330,8 @@ export default function StudentRegistrationModal() {
                           </div>
                         </div>
 
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                          isSelected ? 'border-white bg-white text-blue-600' : 'border-slate-300 bg-slate-50'
-                        }`}>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 ${isSelected ? 'border-white bg-white text-blue-600' : 'border-slate-300 bg-slate-50'
+                          }`}>
                           {isSelected && <Check size={12} strokeWidth={3} />}
                         </div>
                       </div>
@@ -380,7 +375,7 @@ export default function StudentRegistrationModal() {
               <div>
                 <h3 className="text-3xl font-black text-slate-900">Registration Successful!</h3>
                 <p className="text-sm font-semibold text-slate-600 max-w-md mx-auto mt-1">
-                  Thank you <strong>{submittedReg.name}</strong>! Your sports registration for AAHWAN {year} has been successfully recorded.
+                  Thank you <strong>{submittedReg.name}</strong>! Your sports registration for AWAHAAN {year} has been successfully recorded.
                 </p>
               </div>
 

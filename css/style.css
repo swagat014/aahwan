@@ -1,5 +1,5 @@
 /* ==========================================================================
-   AAHWAN 2026 - Government College of Engineering Kalahandi (GCEK)
+   AWAHAAN 2026 - Government College of Engineering Kalahandi (GCEK)
    Premium White Light Theme Design System
    ========================================================================== */
 
@@ -11,7 +11,7 @@
   --bg-surface: #FFFFFF;
   --bg-card: rgba(255, 255, 255, 0.88);
   --bg-card-hover: rgba(255, 255, 255, 0.98);
-  
+
   --text-dark: #0F172A;
   --text-body: #334155;
   --text-muted: #64748B;
@@ -22,14 +22,14 @@
   --blue-hover: #1D4ED8;
   --blue-light: #EFF6FF;
   --blue-border: #BFDBFE;
-  
+
   --gold-accent: #D97706;
   --gold-light: #FEF3C7;
   --emerald-accent: #059669;
   --emerald-light: #D1FAE5;
   --crimson-accent: #E11D48;
   --crimson-light: #FFE4E6;
-  
+
   --border-light: #E2E8F0;
   --border-subtle: #F1F5F9;
 
@@ -38,23 +38,25 @@
   --shadow-md: 0 10px 25px -5px rgba(15, 23, 42, 0.06), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
   --shadow-lg: 0 25px 50px -12px rgba(15, 23, 42, 0.1);
   --shadow-blue-glow: 0 12px 30px -8px rgba(37, 99, 235, 0.35);
-  
+
   /* Fonts */
   --font-display: 'Syne', sans-serif;
   --font-heading: 'Outfit', sans-serif;
   --font-body: 'Plus Jakarta Sans', sans-serif;
-  
+
   --radius-sm: 8px;
   --radius-md: 14px;
   --radius-lg: 24px;
   --radius-full: 9999px;
-  
+
   --transition-fast: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-smooth: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Reset & Global Base */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
@@ -73,7 +75,7 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-image: 
+  background-image:
     radial-gradient(circle at 10% 10%, rgba(37, 99, 235, 0.04) 0%, transparent 40%),
     radial-gradient(circle at 90% 60%, rgba(217, 119, 6, 0.03) 0%, transparent 40%),
     radial-gradient(circle at 50% 90%, rgba(16, 185, 129, 0.03) 0%, transparent 50%);
@@ -328,7 +330,8 @@ img {
   position: relative;
 }
 
-.nav-link:hover, .nav-link.active {
+.nav-link:hover,
+.nav-link.active {
   color: var(--blue-primary);
 }
 
@@ -344,7 +347,8 @@ img {
   border-radius: 2px;
 }
 
-.nav-link:hover::after, .nav-link.active::after {
+.nav-link:hover::after,
+.nav-link.active::after {
   width: 100%;
 }
 
@@ -377,9 +381,20 @@ img {
 }
 
 @keyframes pulse-green {
-  0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7); }
-  70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(5, 150, 105, 0); }
-  100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(5, 150, 105, 0); }
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0.7);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 8px rgba(5, 150, 105, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(5, 150, 105, 0);
+  }
 }
 
 .mobile-menu-btn {
@@ -722,7 +737,8 @@ img {
   transition: var(--transition-fast);
 }
 
-.filter-tab:hover, .filter-tab.active {
+.filter-tab:hover,
+.filter-tab.active {
   background: var(--blue-primary);
   color: #FFFFFF;
   border-color: var(--blue-primary);
@@ -1002,9 +1018,17 @@ img {
   border: 3px solid var(--bg-surface);
 }
 
-.podium-1 .podium-rank { background: var(--gold-accent); }
-.podium-2 .podium-rank { background: #94A3B8; }
-.podium-3 .podium-rank { background: #B45309; }
+.podium-1 .podium-rank {
+  background: var(--gold-accent);
+}
+
+.podium-2 .podium-rank {
+  background: #94A3B8;
+}
+
+.podium-3 .podium-rank {
+  background: #B45309;
+}
 
 .podium-branch {
   font-family: var(--font-heading);
@@ -1026,7 +1050,8 @@ img {
   text-align: left;
 }
 
-.tally-table th, .tally-table td {
+.tally-table th,
+.tally-table td {
   padding: 1.1rem 1.5rem;
 }
 
@@ -1076,9 +1101,17 @@ img {
   font-family: var(--font-heading);
 }
 
-.gold-text { color: var(--gold-accent); }
-.silver-text { color: #64748B; }
-.bronze-text { color: #B45309; }
+.gold-text {
+  color: var(--gold-accent);
+}
+
+.silver-text {
+  color: #64748B;
+}
+
+.bronze-text {
+  color: #B45309;
+}
 
 /* ==========================================================================
    Gallery Section
@@ -1317,9 +1350,11 @@ img {
     grid-template-columns: 1fr;
     gap: 3rem;
   }
+
   .about-grid {
     grid-template-columns: 1fr;
   }
+
   .footer-grid {
     grid-template-columns: 1fr 1fr;
   }
@@ -1329,23 +1364,29 @@ img {
   .nav-links {
     display: none;
   }
+
   .mobile-menu-btn {
     display: block;
   }
+
   .hero-stats {
     grid-template-columns: repeat(2, 1fr);
   }
+
   .podium-container {
     grid-template-columns: 1fr;
   }
+
   .podium-1 {
     order: 1;
     transform: none;
   }
+
   .fixture-card {
     grid-template-columns: 1fr;
     gap: 0.75rem;
   }
+
   .fixture-status {
     text-align: left;
   }

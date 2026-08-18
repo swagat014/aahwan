@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 
 export default function MarqueeText() {
   const marqueeItems = [
-    'AAHWAN 2026',
+    'AWAHAAN 2026',
     'GOVT. COLLEGE OF ENGINEERING KALAHANDI',
     'TRACK & ATHLETICS',
     'CRICKET CHAMPIONS CUP',

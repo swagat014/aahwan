@@ -1,5 +1,5 @@
 /**
- * AAHWAN 2026 - Government College of Engineering Kalahandi (GCEK)
+ * AWAHAAN 2026 - Government College of Engineering Kalahandi (GCEK)
  * Interactive Application Controller
  */
 
@@ -271,8 +271,8 @@ function initGalleryLightbox() {
   galleryItems.forEach(item => {
     item.addEventListener('click', () => {
       const img = item.querySelector('img');
-      const title = item.querySelector('h4')?.textContent || 'AAHWAN Highlight';
-      
+      const title = item.querySelector('h4')?.textContent || 'AWAHAAN Highlight';
+
       if (img) {
         const lightboxModal = document.createElement('div');
         lightboxModal.className = 'modal-backdrop active';

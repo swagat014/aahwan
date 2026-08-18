@@ -30,7 +30,7 @@ export default function DignitariesTab() {
     const publicUrl = await handlePhotoUpload(file, 'dignitaries');
     setUploading(false);
     updateDignitary(tier, index, { image: publicUrl });
-    setSavedMsg('Photo uploaded to Supabase bucket "aahwan" successfully!');
+    setSavedMsg('Photo uploaded to Supabase bucket "AWAHAAN" successfully!');
     setTimeout(() => setSavedMsg(''), 3000);
   };
 
@@ -64,11 +64,10 @@ export default function DignitariesTab() {
           <button
             key={tier}
             onClick={() => setActiveTier(tier)}
-            className={`px-5 py-2.5 rounded-2xl font-black text-xs transition-all ${
-              activeTier === tier
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-            }`}
+            className={`px-5 py-2.5 rounded-2xl font-black text-xs transition-all ${activeTier === tier
+              ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
           >
             {tierLabels[tier]}
           </button>
@@ -79,12 +78,12 @@ export default function DignitariesTab() {
       <div className="space-y-6">
         {dignitaries[activeTier]?.map((person, idx) => (
           <div key={idx} className="bg-slate-50 border border-slate-200 rounded-3xl p-6 relative space-y-4">
-            
+
             <div className="flex items-center justify-between pb-3 border-b border-slate-200">
               <span className="text-xs font-black text-blue-600 uppercase tracking-widest">
                 #{idx + 1} {person.role || 'Officer'}
               </span>
-              
+
               <button
                 onClick={() => removeDignitary(activeTier, idx)}
                 className="text-slate-400 hover:text-rose-600 transition-colors p-1.5 rounded-full hover:bg-rose-50"
@@ -95,7 +94,7 @@ export default function DignitariesTab() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-              
+
               {/* Photo & Upload Button */}
               <div className="md:col-span-3 text-center">
                 <div className="w-28 h-28 mx-auto rounded-full overflow-hidden border-4 border-white shadow-lg mb-3 relative group">

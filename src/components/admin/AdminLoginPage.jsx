@@ -4,7 +4,7 @@ import { Lock, Key, ShieldAlert, ArrowLeft, Trophy, ShieldCheck } from 'lucide-r
 import { useApp } from '../../context/AppContext';
 
 export default function AdminLoginPage() {
-  const { loginAdmin, setViewMode, year } = useApp();
+  const { loginAdmin, setViewMode, year, festivalName } = useApp();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -21,12 +21,12 @@ export default function AdminLoginPage() {
       if (!res.success) {
         setError(res.message);
       }
-    }, 500);
+    }, 400);
   };
 
   return (
     <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center p-4 relative overflow-hidden select-none">
-      
+
       {/* Background Radial Glows */}
       <div className="absolute top-1/4 left-1/3 w-[600px] h-[600px] bg-blue-600/15 rounded-full blur-[160px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/3 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[140px] pointer-events-none" />
@@ -46,14 +46,14 @@ export default function AdminLoginPage() {
         transition={{ duration: 0.5 }}
         className="bg-slate-900/90 backdrop-blur-2xl border border-slate-800 rounded-3xl max-w-md w-full p-8 sm:p-10 shadow-2xl relative z-10"
       >
-        
-        {/* Crest */}
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center mb-6 mx-auto shadow-xl shadow-blue-600/20 border border-blue-400/30">
+
+        {/* Crest Emblem */}
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 via-indigo-600 to-amber-500 text-white flex items-center justify-center mb-5 mx-auto shadow-xl shadow-blue-600/20 border border-blue-400/30">
           <Trophy size={32} />
         </div>
 
         <h2 className="text-3xl font-black text-center text-white mb-1">
-          AAHWAN {year} Admin
+          {festivalName} {year} Admin
         </h2>
         <p className="text-xs font-bold text-slate-400 text-center uppercase tracking-widest mb-8">
           Government College of Engineering Kalahandi
@@ -63,14 +63,14 @@ export default function AdminLoginPage() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="p-4 bg-rose-950/80 border border-rose-800/80 text-rose-300 text-xs font-bold rounded-2xl mb-6 flex items-center gap-3"
+            className="p-4 bg-rose-950/80 border border-rose-800/80 text-rose-300 text-xs font-bold rounded-2xl mb-6 flex items-start gap-3"
           >
-            <ShieldAlert size={18} className="shrink-0 text-rose-400" />
+            <ShieldAlert size={18} className="shrink-0 text-rose-400 mt-0.5" />
             <span>{error}</span>
           </motion.div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-[0.7rem] font-black uppercase text-slate-400 tracking-widest mb-2">
               Admin ID / Username
@@ -78,7 +78,7 @@ export default function AdminLoginPage() {
             <input
               type="text"
               required
-              placeholder="adminaahwan"
+              placeholder="Enter Admin ID"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="w-full px-4 py-3.5 bg-slate-950/90 border border-slate-800 rounded-2xl text-white font-extrabold text-sm focus:outline-none focus:border-blue-500 transition-all placeholder:text-slate-600"

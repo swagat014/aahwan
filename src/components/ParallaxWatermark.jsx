@@ -12,13 +12,13 @@ export default function ParallaxWatermark() {
 
   return (
     <div className="fixed inset-0 overflow-hidden pointer-events-none z-0 select-none">
-      
+
       {/* Top Left Watermark */}
       <motion.div
         style={{ y: y1 }}
         className="absolute top-28 -left-10 text-[9rem] sm:text-[15rem] font-black text-stroke-watermark uppercase whitespace-nowrap opacity-80"
       >
-        AAHWAN 2026
+        AWAHAAN 2026
       </motion.div>
 
       {/* Mid Right Watermark */}

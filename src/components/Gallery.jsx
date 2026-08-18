@@ -4,7 +4,7 @@ import { Camera, X, Maximize2, Sparkles, Trophy, Eye } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export default function Gallery() {
-  const { galleryPhotos, year } = useApp();
+  const { galleryPhotos, year, festivalName } = useApp();
   const [selectedPhoto, setSelectedPhoto] = useState(null);
   const [activeCategory, setActiveCategory] = useState('all');
 
@@ -22,12 +22,12 @@ export default function Gallery() {
 
   return (
     <section id="gallery" className="py-28 bg-slate-50/80 relative overflow-hidden select-none">
-      
+
       {/* Radial Ambient Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[850px] h-[850px] bg-blue-500/5 rounded-full blur-[160px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -39,11 +39,11 @@ export default function Gallery() {
           <div className="inline-flex items-center gap-2 px-5 py-2 bg-white text-blue-600 border border-blue-200/90 rounded-full text-xs font-black uppercase tracking-widest mb-4 shadow-sm">
             <Camera size={15} className="text-amber-500" /> Photo Highlights & Action Moments
           </div>
-          
+
           <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-4">
-            AAHWAN {year} Photo Gallery
+            {festivalName} {year} Photo Gallery
           </h2>
-          
+
           <p className="text-slate-600 text-lg">
             High-definition moments celebrating victory, team camaraderie, and athletic excellence at GCEK.
           </p>
@@ -55,11 +55,10 @@ export default function Gallery() {
             <button
               key={tab.id}
               onClick={() => setActiveCategory(tab.id)}
-              className={`relative px-6 py-2.5 rounded-full font-black text-xs sm:text-sm transition-colors ${
-                activeCategory === tab.id
-                  ? 'text-white'
-                  : 'text-slate-700 hover:text-blue-600 bg-white border border-slate-200'
-              }`}
+              className={`relative px-6 py-2.5 rounded-full font-black text-xs sm:text-sm transition-colors ${activeCategory === tab.id
+                ? 'text-white'
+                : 'text-slate-700 hover:text-blue-600 bg-white border border-slate-200'
+                }`}
             >
               {activeCategory === tab.id && (
                 <motion.div
@@ -118,7 +117,7 @@ export default function Gallery() {
         <AnimatePresence>
           {selectedPhoto && (
             <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
-              
+
               {/* Backdrop */}
               <motion.div
                 initial={{ opacity: 0 }}
@@ -156,7 +155,7 @@ export default function Gallery() {
                   </div>
 
                   <span className="text-xs font-black text-slate-500 uppercase tracking-widest bg-slate-100 px-4 py-2 rounded-full border border-slate-200">
-                    AAHWAN {year} • GCEK Kalahandi
+                    AWAHAAN {year} • GCEK Kalahandi
                   </span>
                 </div>
               </motion.div>

@@ -79,8 +79,8 @@ export default function SportsShowcase({ onSelectSport }) {
         {/* Filter Bar & Search */}
         <div className="flex flex-wrap items-center justify-between gap-4 bg-white/90 backdrop-blur-md border border-slate-200/90 rounded-3xl p-3.5 mb-8 shadow-sm">
           
-          {/* Category Pills */}
-          <div className="flex flex-wrap gap-2">
+          {/* Category Pills (Horizontal Scroll on Mobile) */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 w-full sm:w-auto">
             {categories.map(tab => (
               <button
                 key={tab.id}

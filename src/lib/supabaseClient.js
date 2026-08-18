@@ -6,17 +6,17 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-export const BUCKET_NAME = 'aahwan';
+export const BUCKET_NAME = 'AWAHAAN';
 
 /**
- * Upload an image file to Supabase Storage bucket 'aahwan'
+ * Upload an image file to Supabase Storage bucket 'AWAHAAN'
  * Returns the public URL of the uploaded image
  */
 export async function uploadImageToSupabase(file, folder = 'dignitaries') {
   try {
     const fileExt = file.name.split('.').pop();
     const fileName = `${folder}/${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
-    
+
     const { data, error } = await supabase.storage
       .from(BUCKET_NAME)
       .upload(fileName, file, {

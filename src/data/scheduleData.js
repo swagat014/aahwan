@@ -127,7 +127,7 @@ export const dignitariesData = {
       role: 'Principal & Chief Patron',
       dept: 'Principal, GCEK Kalahandi',
       image: '/assets/images/gcek_principal_vp_1786977233454.png',
-      quote: 'Sports build character, discipline, and lifelong resilience. May AAHWAN 2026 inspire every engineer at GCEK to strive for glory with unwavering integrity.'
+      quote: 'Sports build character, discipline, and lifelong resilience. May AWAHAAN 2026 inspire every engineer at GCEK to strive for glory with unwavering integrity.'
     },
     {
       name: 'Dr. Dean Students Welfare',
@@ -157,9 +157,9 @@ export const dignitariesData = {
     {
       name: 'Student Sports Secretary',
       role: 'Sports Secretary',
-      dept: 'Student Head, AAHWAN 2026',
+      dept: 'Student Head, AWAHAAN 2026',
       image: '/assets/images/sports_secretary_action_1786977259887.png',
-      quote: 'Leading the student athletic community of GCEK! Let us unite for victory and sportsmanship in AAHWAN 2026.'
+      quote: 'Leading the student athletic community of GCEK! Let us unite for victory and sportsmanship in AWAHAAN 2026.'
     },
     {
       name: 'Student Coordinators & Conveners',

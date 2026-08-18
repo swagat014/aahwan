@@ -18,7 +18,7 @@ export default function PrintableRosterModal({ sportTitle, onClose }) {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 print:p-0 print:static">
-        
+
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -49,7 +49,7 @@ export default function PrintableRosterModal({ sportTitle, onClose }) {
               >
                 <Printer size={16} /> Print Official Sheet
               </button>
-              
+
               <button
                 onClick={onClose}
                 className="w-10 h-10 rounded-full bg-slate-100 text-slate-700 hover:bg-rose-100 hover:text-rose-600 flex items-center justify-center transition-colors"
@@ -61,13 +61,13 @@ export default function PrintableRosterModal({ sportTitle, onClose }) {
 
           {/* Printable Letterhead Content */}
           <div className="space-y-6 text-slate-900 font-sans print:p-4">
-            
+
             {/* Header / Letterhead */}
             <div className="text-center pb-6 border-b-2 border-slate-900">
               <h2 className="text-xl sm:text-2xl font-black uppercase tracking-wider">{collegeName} {collegeLocation}</h2>
               <p className="text-xs font-bold uppercase tracking-widest text-slate-600">Bhawanipatna, Kalahandi, Odisha - 766002</p>
               <h3 className="text-lg font-black text-blue-800 uppercase tracking-widest mt-2">
-                AAHWAN {year} ANNUAL ATHLETIC MEET • OFFICIATING SHEET
+                AWAHAAN {year} ANNUAL ATHLETIC MEET • OFFICIATING SHEET
               </h3>
             </div>
 

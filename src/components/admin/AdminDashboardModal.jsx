@@ -25,7 +25,7 @@ export default function AdminDashboardModal() {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6">
-        
+
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -57,7 +57,7 @@ export default function AdminDashboardModal() {
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-xs font-black uppercase tracking-wider mb-1">
                 Admin Portal • Supabase Connected
               </div>
-              <h3 className="text-2xl sm:text-3xl font-black text-slate-900">AAHWAN Admin Control Center</h3>
+              <h3 className="text-2xl sm:text-3xl font-black text-slate-900">AWAHAAN Admin Control Center</h3>
               <p className="text-xs text-slate-500 font-semibold">Government College of Engineering Kalahandi</p>
             </div>
 
@@ -75,11 +75,10 @@ export default function AdminDashboardModal() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-xs transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 scale-102'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
+                className={`flex items-center gap-2 px-5 py-2.5 rounded-2xl font-black text-xs transition-all ${activeTab === tab.id
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 scale-102'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
               >
                 {tab.icon}
                 <span>{tab.label}</span>

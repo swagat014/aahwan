@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Users, Trash2, Printer, Search, Filter, CheckCircle, BookOpen } from 'lucide-react';
+import { Users, Trash2, Printer, Search, Filter, CheckCircle, BookOpen, ShieldCheck, Mail, Phone, UserCheck, Calendar } from 'lucide-react';
 import PrintableRosterModal from './PrintableRosterModal';
 
 export default function StudentRegistrationsTab() {
@@ -21,14 +21,14 @@ export default function StudentRegistrationsTab() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 select-none">
       
       {/* Header Bar */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
-          <h4 className="text-xl font-black text-slate-900">Student Registrations & Rosters Manager</h4>
+          <h4 className="text-xl font-black text-slate-900">Student Submissions & Official Rosters</h4>
           <p className="text-xs text-slate-500 font-semibold">
-            Manage registered student submissions ({registrations.length} total), filter per sport event, and generate official printable officiating rosters.
+            Manage registered student athletes ({registrations.length} total), filter per sport event, and generate printable rosters.
           </p>
         </div>
 
@@ -42,7 +42,7 @@ export default function StudentRegistrationsTab() {
         )}
       </div>
 
-      {/* Filter & Search Bar */}
+      {/* Filter & Search Controls */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 rounded-3xl p-4">
         
         {/* Search Input */}
@@ -64,7 +64,7 @@ export default function StudentRegistrationsTab() {
             onChange={(e) => setSelectedSportFilter(e.target.value)}
             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-blue-600"
           >
-            <option value="all">All Sports & Athletics ({sports.length})</option>
+            <option value="all">All Sports Events ({sports.length})</option>
             {sports.map(s => (
               <option key={s.id} value={s.title}>{s.title}</option>
             ))}
@@ -79,10 +79,10 @@ export default function StudentRegistrationsTab() {
             className="w-full px-3 py-2 bg-white border border-slate-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-blue-600"
           >
             <option value="all">All Engineering Branches</option>
-            <option value="Computer Science">Computer Science & Engg (CSE)</option>
-            <option value="Electrical">Electrical Engineering (EE)</option>
-            <option value="Mechanical">Mechanical Engineering (ME)</option>
-            <option value="Civil">Civil Engineering (CE)</option>
+            <option value="Computer Science">Computer Science (CSE)</option>
+            <option value="Electrical">Electrical Engg (EE)</option>
+            <option value="Mechanical">Mechanical Engg (ME)</option>
+            <option value="Civil">Civil Engg (CE)</option>
           </select>
         </div>
 
@@ -101,12 +101,66 @@ export default function StudentRegistrationsTab() {
 
       </div>
 
-      {/* Registrations Table */}
-      <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+      {/* MOBILE STACKED CARDS VIEW (Visible < md) */}
+      <div className="md:hidden space-y-3">
+        {filteredRegistrations.length > 0 ? (
+          filteredRegistrations.map((student) => (
+            <div key={student.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3 shadow-sm">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                <span className="font-mono font-black text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-100">
+                  {student.rollNo}
+                </span>
+
+                <div className="flex items-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[0.68rem] font-black ${
+                    student.gender === 'Boys Division' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'
+                  }`}>
+                    {student.gender}
+                  </span>
+
+                  <button
+                    onClick={() => deleteRegistration(student.id)}
+                    className="text-slate-400 hover:text-rose-600 p-1.5 rounded-full hover:bg-rose-100"
+                    title="Delete Registration"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <h5 className="font-black text-base text-slate-900">{student.name}</h5>
+                <p className="text-xs font-bold text-slate-500">{student.branch} ({student.year})</p>
+              </div>
+
+              {/* Selected Events */}
+              <div className="space-y-1 pt-1">
+                <span className="text-[0.65rem] font-black uppercase text-slate-400 block tracking-wider">
+                  Registered Events ({student.events.length})
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {student.events.map((e, idx) => (
+                    <span key={idx} className="px-2.5 py-1 bg-white text-slate-800 border border-slate-200 rounded-xl text-xs font-bold shadow-2xs">
+                      🏆 {e}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="p-8 text-center text-slate-500 font-bold bg-white rounded-2xl border border-slate-200">
+            No student registrations found.
+          </div>
+        )}
+      </div>
+
+      {/* DESKTOP METALLIC TABLE VIEW (Visible >= md) */}
+      <div className="hidden md:block bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-100 border-b border-slate-200 font-black text-slate-700 uppercase tracking-wider">
+              <tr className="bg-slate-900 text-white font-black uppercase tracking-wider text-[0.7rem]">
                 <th className="p-4">Roll No</th>
                 <th className="p-4">Student Name</th>
                 <th className="p-4">Branch & Year</th>
@@ -119,9 +173,9 @@ export default function StudentRegistrationsTab() {
               {filteredRegistrations.length > 0 ? (
                 filteredRegistrations.map((student) => (
                   <tr key={student.id} className="hover:bg-blue-50/50 transition-colors">
-                    <td className="p-4 font-mono font-bold text-slate-900">{student.rollNo}</td>
+                    <td className="p-4 font-mono font-black text-blue-600">{student.rollNo}</td>
                     <td className="p-4 font-black text-slate-900">{student.name}</td>
-                    <td className="p-4 text-slate-600">{student.branch} ({student.year})</td>
+                    <td className="p-4 text-slate-600 font-bold">{student.branch} ({student.year})</td>
                     <td className="p-4">
                       <span className={`inline-block px-2.5 py-0.5 rounded-full text-[0.7rem] font-bold ${
                         student.gender === 'Boys Division' ? 'bg-blue-100 text-blue-800' : 'bg-pink-100 text-pink-800'

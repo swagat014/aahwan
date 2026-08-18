@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Plus, Trash2, Edit3, Save, CheckCircle, Trophy, Search, Filter, BookOpen, X, ShieldCheck, Users } from 'lucide-react';
 
 export default function SportsTab() {
-  const { sports, addSport, updateSport, deleteSport } = useApp();
+  const { sports, addSport, updateSport, deleteSport, updateSportCategory } = useApp();
   const [savedMsg, setSavedMsg] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -174,8 +174,8 @@ export default function SportsTab() {
               </button>
             </div>
 
-            {/* Sport Title & Division Inputs */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Sport Title & Division & Type Inputs */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[0.65rem] font-black uppercase text-slate-500 tracking-wider mb-1">
                   Sport Discipline Title
@@ -186,6 +186,21 @@ export default function SportsTab() {
                   onChange={(e) => updateSport(sport.id, { title: e.target.value })}
                   className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-slate-900 font-extrabold text-sm focus:outline-none focus:border-blue-600"
                 />
+              </div>
+
+              {/* SPORT TYPE SELECTOR DROPDOWN */}
+              <div>
+                <label className="block text-[0.65rem] font-black uppercase text-slate-500 tracking-wider mb-1 flex items-center gap-1">
+                  <Trophy size={12} className="text-blue-600" /> Sport Type & Rules
+                </label>
+                <select
+                  value={sport.category === 'team' ? 'team' : 'athletics'}
+                  onChange={(e) => updateSportCategory(sport.id, e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white border border-blue-300 rounded-xl text-blue-900 font-black text-xs focus:outline-none focus:border-blue-600"
+                >
+                  <option value="athletics">🏃 Individual (5/3/1 Pts)</option>
+                  <option value="team">⚽ Team Sport (8/5 Pts)</option>
+                </select>
               </div>
 
               {/* DIVISION SELECTOR DROPDOWN */}

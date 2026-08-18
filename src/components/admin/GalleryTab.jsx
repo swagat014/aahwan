@@ -21,7 +21,7 @@ export default function GalleryTab() {
     const publicUrl = await handlePhotoUpload(file, 'gallery');
     setUploading(false);
     setNewPhoto(prev => ({ ...prev, image: publicUrl }));
-    setSavedMsg('Photo uploaded to Supabase storage bucket "aahwan" successfully!');
+    setSavedMsg('Photo uploaded to Supabase storage bucket "AWAHAAN" successfully!');
     setTimeout(() => setSavedMsg(''), 3000);
   };
 
@@ -37,13 +37,13 @@ export default function GalleryTab() {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-200">
         <div>
           <h4 className="text-xl font-black text-slate-900">Photo Highlights Gallery Manager</h4>
           <p className="text-xs text-slate-500 font-semibold">
-            Manage high-definition sports photo highlights. Upload photos directly to Supabase storage bucket "aahwan".
+            Manage high-definition sports photo highlights. Upload photos directly to Supabase storage bucket "AWAHAAN".
           </p>
         </div>
 
@@ -71,7 +71,7 @@ export default function GalleryTab() {
           </h5>
 
           <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-center">
-            
+
             {/* Image Preview & Upload Dropzone */}
             <div className="md:col-span-4 text-center">
               <div className="w-full h-40 rounded-2xl overflow-hidden border-2 border-blue-300 mb-3 relative bg-slate-200">

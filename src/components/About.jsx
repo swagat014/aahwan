@@ -41,12 +41,12 @@ export default function About() {
 
   return (
     <section id="about" className="py-28 bg-white relative overflow-hidden">
-      
+
       {/* Radial Ambient Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-blue-500/5 rounded-full blur-[160px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        
+
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -58,18 +58,18 @@ export default function About() {
           <div className="inline-flex items-center gap-2 px-5 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-full text-xs font-black uppercase tracking-widest mb-4">
             <Shield size={14} /> Athletic Legacy & Culture
           </div>
-          
+
           <h2 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight mb-4">
             Pillars of GCEK Athletic Excellence
           </h2>
-          
+
           <p className="text-slate-600 text-lg">
-            AAHWAN is the signature annual sports festival of Government College of Engineering Kalahandi, uniting academic spirit with physical vigor.
+            AWAHAAN is the signature annual sports festival of Government College of Engineering Kalahandi, uniting academic spirit with physical vigor.
           </p>
         </motion.div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
-          
+
           {/* 4 Pillars Grid */}
           <motion.div
             variants={containerVariants}
@@ -104,7 +104,7 @@ export default function About() {
           >
             <div className="award-glass-card p-8 sm:p-10 rounded-3xl relative border border-slate-200 shadow-2xl overflow-hidden group">
               <Quote className="text-blue-200/70 w-28 h-28 absolute -top-4 -right-4 pointer-events-none group-hover:scale-110 transition-transform duration-500" />
-              
+
               <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full text-xs font-black uppercase tracking-wider mb-6">
                 <Flame size={14} className="text-amber-500" /> GCEK Sports Mission
               </div>
@@ -112,9 +112,9 @@ export default function About() {
               <h3 className="font-black text-2xl text-slate-900 mb-4">
                 Message from Sports Society
               </h3>
-              
+
               <p className="text-slate-700 italic mb-8 leading-relaxed text-base">
-                "At Government College of Engineering Kalahandi, engineering rigor goes hand-in-hand with athletic endurance. AAHWAN 2026 brings together hundreds of student-athletes competing across track, field, team sports, and indoor board games."
+                "At Government College of Engineering Kalahandi, engineering rigor goes hand-in-hand with athletic endurance. AWAHAAN 2026 brings together hundreds of student-athletes competing across track, field, team sports, and indoor board games."
               </p>
 
               <div className="flex items-center gap-4 pt-6 border-t border-slate-200/80">
@@ -122,7 +122,7 @@ export default function About() {
                   GCEK
                 </div>
                 <div>
-                  <h4 className="font-extrabold text-slate-900 text-base">AAHWAN Organising Board</h4>
+                  <h4 className="font-extrabold text-slate-900 text-base">AWAHAAN Organising Board</h4>
                   <p className="text-xs text-slate-500 font-semibold">Bhawanipatna, Kalahandi, Odisha</p>
                 </div>
               </div>

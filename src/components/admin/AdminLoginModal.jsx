@@ -29,7 +29,7 @@ export default function AdminLoginModal() {
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4">
-        
+
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -60,7 +60,7 @@ export default function AdminLoginModal() {
           </div>
 
           <h3 className="text-2xl font-black text-slate-900 text-center mb-1">
-            AAHWAN Admin Portal
+            AWAHAAN Admin Portal
           </h3>
           <p className="text-xs text-slate-500 font-semibold text-center mb-6">
             Government College of Engineering Kalahandi
@@ -86,7 +86,7 @@ export default function AdminLoginModal() {
                 <input
                   type="text"
                   required
-                  placeholder="adminaahwan"
+                  placeholder="adminAWAHAAN"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 text-sm font-bold focus:outline-none focus:border-blue-600 focus:bg-white transition-all placeholder:text-slate-400"
