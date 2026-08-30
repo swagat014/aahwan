@@ -297,6 +297,10 @@ export function AppProvider({ children }) {
     const channel = supabase
       .channel('public:site_settings')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, (payload) => {
+        // Do NOT overwrite current admin typing session to avoid input flickering
+        const isEditingAdmin = localStorage.getItem('aahwan_admin_session') === 'true';
+        if (isEditingAdmin) return;
+
         if (payload.new && payload.new.config) {
           const cfg = payload.new.config;
           if (cfg.festivalName) setFestivalName(cfg.festivalName);
@@ -316,7 +320,7 @@ export function AppProvider({ children }) {
     };
   }, []);
 
-  // Sync to LocalStorage and Cloud Database
+  // Sync to LocalStorage immediately and Cloud Database (Debounced to prevent flickering)
   useEffect(() => {
     localStorage.setItem('aahwan_year', year);
     localStorage.setItem('AWAHAAN_year', year);
@@ -378,8 +382,10 @@ export function AppProvider({ children }) {
     localStorage.setItem('aahwan_registrations', JSON.stringify(registrations));
     localStorage.setItem('AWAHAAN_registrations', JSON.stringify(registrations));
 
-    // Save to Cloud DB if Supabase is connected
-    if (supabase && isAdminLoggedIn) {
+    // Debounced Save to Cloud DB to prevent mid-keystroke flickering
+    if (!supabase || !isAdminLoggedIn) return;
+
+    const timer = setTimeout(() => {
       supabase.from('site_settings').upsert({
         id: 'global_config',
         config: {
@@ -402,10 +408,12 @@ export function AppProvider({ children }) {
         updated_at: new Date().toISOString()
       }).then(({ error }) => {
         if (error) {
-          console.warn('Supabase config sync (table site_settings missing or not created yet):', error.message);
+          console.warn('Supabase config sync:', error.message);
         }
       });
-    }
+    }, 1200);
+
+    return () => clearTimeout(timer);
   }, [year, festivalName, collegeName, collegeLocation, helplinePhone, helplineEmail, statSportsCount, statAthletesCount, statStreamsCount, statDaysCount, teamPointsRule, athleticsPointsRule, sportWinners, dailyMedals, dignitaries, sports, schedule, leaderboard, galleryPhotos, registrations, isAdminLoggedIn]);
 
   // Winner Assignments & Dynamic Auto-Calculation Engine for Standings
