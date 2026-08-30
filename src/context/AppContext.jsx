@@ -400,7 +400,11 @@ export function AppProvider({ children }) {
           galleryPhotos
         },
         updated_at: new Date().toISOString()
-      }).catch(err => console.warn('Supabase config sync:', err));
+      }).then(({ error }) => {
+        if (error) {
+          console.warn('Supabase config sync (table site_settings missing or not created yet):', error.message);
+        }
+      });
     }
   }, [year, festivalName, collegeName, collegeLocation, helplinePhone, helplineEmail, statSportsCount, statAthletesCount, statStreamsCount, statDaysCount, teamPointsRule, athleticsPointsRule, sportWinners, dailyMedals, dignitaries, sports, schedule, leaderboard, galleryPhotos, registrations, isAdminLoggedIn]);
 
