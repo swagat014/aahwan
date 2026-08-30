@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { sportsData as initialSports } from '../data/sportsData';
 import { scheduleData as initialSchedule, leaderboardData as initialLeaderboard, dignitariesData as initialDignitaries } from '../data/scheduleData';
-import { uploadImageToSupabase } from '../lib/supabaseClient';
+import { supabase, uploadImageToSupabase } from '../lib/supabaseClient';
 
 const AppContext = createContext();
 
@@ -256,7 +256,67 @@ export function AppProvider({ children }) {
 
   const [showStudentRegistration, setShowStudentRegistration] = useState(false);
 
-  // Sync to LocalStorage
+  // Fetch global config from Supabase Cloud on mount (so mobile devices load admin edits)
+  useEffect(() => {
+    if (!supabase) return;
+
+    async function loadCloudConfig() {
+      try {
+        const { data, error } = await supabase
+          .from('site_settings')
+          .select('*')
+          .eq('id', 'global_config')
+          .single();
+
+        if (!error && data?.config) {
+          const cfg = data.config;
+          if (cfg.year) setYear(cfg.year);
+          if (cfg.festivalName) setFestivalName(cfg.festivalName);
+          if (cfg.collegeName) setCollegeName(cfg.collegeName);
+          if (cfg.collegeLocation) setCollegeLocation(cfg.collegeLocation);
+          if (cfg.helplinePhone) setHelplinePhone(cfg.helplinePhone);
+          if (cfg.helplineEmail) setHelplineEmail(cfg.helplineEmail);
+          if (cfg.statSportsCount) setStatSportsCount(cfg.statSportsCount);
+          if (cfg.statAthletesCount) setStatAthletesCount(cfg.statAthletesCount);
+          if (cfg.statStreamsCount) setStatStreamsCount(cfg.statStreamsCount);
+          if (cfg.statDaysCount) setStatDaysCount(cfg.statDaysCount);
+          if (cfg.sports) setSports(cfg.sports);
+          if (cfg.dignitaries) setDignitaries(cfg.dignitaries);
+          if (cfg.schedule) setSchedule(cfg.schedule);
+          if (cfg.leaderboard) setLeaderboard(cfg.leaderboard);
+          if (cfg.galleryPhotos) setGalleryPhotos(cfg.galleryPhotos);
+        }
+      } catch (err) {
+        console.warn('Cloud config load bypassed:', err);
+      }
+    }
+
+    loadCloudConfig();
+
+    // Subscribe to Realtime Cloud changes so mobile devices auto-update live
+    const channel = supabase
+      .channel('public:site_settings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, (payload) => {
+        if (payload.new && payload.new.config) {
+          const cfg = payload.new.config;
+          if (cfg.festivalName) setFestivalName(cfg.festivalName);
+          if (cfg.collegeName) setCollegeName(cfg.collegeName);
+          if (cfg.year) setYear(cfg.year);
+          if (cfg.collegeLocation) setCollegeLocation(cfg.collegeLocation);
+          if (cfg.sports) setSports(cfg.sports);
+          if (cfg.dignitaries) setDignitaries(cfg.dignitaries);
+          if (cfg.schedule) setSchedule(cfg.schedule);
+          if (cfg.galleryPhotos) setGalleryPhotos(cfg.galleryPhotos);
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // Sync to LocalStorage and Cloud Database
   useEffect(() => {
     localStorage.setItem('aahwan_year', year);
     localStorage.setItem('AWAHAAN_year', year);
@@ -317,7 +377,32 @@ export function AppProvider({ children }) {
 
     localStorage.setItem('aahwan_registrations', JSON.stringify(registrations));
     localStorage.setItem('AWAHAAN_registrations', JSON.stringify(registrations));
-  }, [year, festivalName, collegeName, collegeLocation, helplinePhone, helplineEmail, statSportsCount, statAthletesCount, statStreamsCount, statDaysCount, teamPointsRule, athleticsPointsRule, sportWinners, dailyMedals, dignitaries, sports, schedule, leaderboard, galleryPhotos, registrations]);
+
+    // Save to Cloud DB if Supabase is connected
+    if (supabase && isAdminLoggedIn) {
+      supabase.from('site_settings').upsert({
+        id: 'global_config',
+        config: {
+          year,
+          festivalName,
+          collegeName,
+          collegeLocation,
+          helplinePhone,
+          helplineEmail,
+          statSportsCount,
+          statAthletesCount,
+          statStreamsCount,
+          statDaysCount,
+          sports,
+          dignitaries,
+          schedule,
+          leaderboard,
+          galleryPhotos
+        },
+        updated_at: new Date().toISOString()
+      }).catch(err => console.warn('Supabase config sync:', err));
+    }
+  }, [year, festivalName, collegeName, collegeLocation, helplinePhone, helplineEmail, statSportsCount, statAthletesCount, statStreamsCount, statDaysCount, teamPointsRule, athleticsPointsRule, sportWinners, dailyMedals, dignitaries, sports, schedule, leaderboard, galleryPhotos, registrations, isAdminLoggedIn]);
 
   // Winner Assignments & Dynamic Auto-Calculation Engine for Standings
   const assignSportWinner = (sportId, winnerData) => {
