@@ -227,6 +227,54 @@ export function AppProvider({ children }) {
     ];
   });
 
+  // Equipment Inventory & Issue/Return Register State
+  const [equipmentList, setEquipmentList] = useState(() => {
+    const saved = localStorage.getItem('aahwan_equipment');
+    return saved ? JSON.parse(saved) : [
+      { id: 'eq-1', name: 'Cricket Tournament Bats', category: 'Cricket', totalQty: 12, condition: 'Good Condition', location: 'Main Sports Store', notes: 'SS English Willow' },
+      { id: 'eq-2', name: 'Cricket Leather Balls', category: 'Cricket', totalQty: 30, condition: 'New Pack', location: 'Store Box 2', notes: 'SG Red Leather' },
+      { id: 'eq-3', name: 'Match Footballs (Nivia)', category: 'Football', totalQty: 15, condition: 'Good Condition', location: 'Main Sports Store', notes: 'Size 5 Match Balls' },
+      { id: 'eq-4', name: 'Volleyballs (Mikasa)', category: 'Volleyball', totalQty: 10, condition: 'Good Condition', location: 'Store Box 1', notes: 'Tournament Approved' },
+      { id: 'eq-5', name: 'Badminton Rackets', category: 'Badminton', totalQty: 16, condition: 'Good Condition', location: 'Indoor Store', notes: 'Yonex Graphite' },
+      { id: 'eq-6', name: 'Mavis 350 Shuttlecocks', category: 'Badminton', totalQty: 40, condition: 'New Pack', location: 'Indoor Store', notes: 'Nylon Shuttles' },
+      { id: 'eq-7', name: 'Chess Wooden Sets', category: 'Indoor Games', totalQty: 8, condition: 'Good Condition', location: 'Indoor Hall', notes: 'Tournament Boards' }
+    ];
+  });
+
+  const [equipmentLogs, setEquipmentLogs] = useState(() => {
+    const saved = localStorage.getItem('aahwan_equipment_logs');
+    return saved ? JSON.parse(saved) : [
+      {
+        id: 'iss-101',
+        equipmentId: 'eq-1',
+        equipmentName: 'Cricket Tournament Bats',
+        borrowerName: 'Swagat Parida',
+        rollNo: '2201105012',
+        branch: 'CSE',
+        qty: 2,
+        status: 'issued',
+        issueDate: '2026-08-30 09:30 AM',
+        returnDate: null,
+        returnCondition: null,
+        notes: 'Inter-branch practice session'
+      },
+      {
+        id: 'iss-102',
+        equipmentId: 'eq-3',
+        equipmentName: 'Match Footballs (Nivia)',
+        borrowerName: 'Priyanka Sahoo',
+        rollNo: '2201105045',
+        branch: 'EE',
+        qty: 1,
+        status: 'returned',
+        issueDate: '2026-08-29 02:00 PM',
+        returnDate: '2026-08-29 05:30 PM',
+        returnCondition: 'Good Condition',
+        notes: 'Girls Football semi-finals'
+      }
+    ];
+  });
+
   // View Mode State: 'public' | 'admin-login' | 'admin-dashboard'
   const [viewMode, setViewMode] = useState(() => {
     const session = localStorage.getItem('aahwan_admin_session') || localStorage.getItem('AWAHAAN_admin_session');
@@ -638,6 +686,83 @@ export function AppProvider({ children }) {
     setSports(prev => prev.filter(s => s.id !== id));
   };
 
+  // Equipment Inventory Handlers
+  const addEquipment = (item) => {
+    const newItem = { ...item, id: `eq-${Date.now()}` };
+    setEquipmentList(prev => {
+      const updated = [newItem, ...prev];
+      localStorage.setItem('aahwan_equipment', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const updateEquipment = (id, updatedData) => {
+    setEquipmentList(prev => {
+      const updated = prev.map(e => e.id === id ? { ...e, ...updatedData } : e);
+      localStorage.setItem('aahwan_equipment', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const deleteEquipment = (id) => {
+    setEquipmentList(prev => {
+      const updated = prev.filter(e => e.id !== id);
+      localStorage.setItem('aahwan_equipment', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const issueEquipment = (data) => {
+    const newLog = {
+      ...data,
+      id: `iss-${Date.now().toString().slice(-4)}`,
+      status: 'issued',
+      issueDate: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+      returnDate: null,
+      returnCondition: null
+    };
+    setEquipmentLogs(prev => {
+      const updated = [newLog, ...prev];
+      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const returnEquipment = (logId, condition, notes, returnQty) => {
+    setEquipmentLogs(prev => {
+      const updated = prev.map(l => {
+        if (l.id === logId) {
+          const totalQtyIssued = Number(l.qty) || 1;
+          const numReturned = Math.min(totalQtyIssued, Number(returnQty) || totalQtyIssued);
+          const isPartial = numReturned < totalQtyIssued;
+
+          if (isPartial) {
+            return {
+              ...l,
+              qty: totalQtyIssued - numReturned,
+              returnedCount: (Number(l.returnedCount) || 0) + numReturned,
+              lastReturnDate: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+              returnCondition: condition,
+              notes: `${l.notes || ''} [Returned ${numReturned} unit(s) on ${new Date().toLocaleDateString()}]`.trim()
+            };
+          } else {
+            return {
+              ...l,
+              status: 'returned',
+              returnedCount: (Number(l.returnedCount) || 0) + numReturned,
+              returnDate: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+              returnCondition: condition,
+              returnNotes: notes
+            };
+          }
+        }
+        return l;
+      });
+      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const handlePhotoUpload = async (file, folder = 'dignitaries') => {
     return await uploadImageToSupabase(file, folder);
   };
@@ -666,6 +791,8 @@ export function AppProvider({ children }) {
       sportWinners, setSportWinners, assignSportWinner, getStandings, updateSportCategory,
       galleryPhotos, addGalleryPhoto, deleteGalleryPhoto,
       registrations, addRegistration, deleteRegistration,
+      equipmentList, addEquipment, updateEquipment, deleteEquipment,
+      equipmentLogs, issueEquipment, returnEquipment,
       viewMode, setViewMode,
       isAdminLoggedIn,
       showStudentRegistration, setShowStudentRegistration,

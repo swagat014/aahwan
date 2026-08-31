@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trophy, MapPin, Clock, Users, Search, ChevronRight } from 'lucide-react';
+import { Trophy, MapPin, Clock, Users, Search, ChevronRight, Sparkles } from 'lucide-react';
 import { sportsData } from '../data/sportsData';
 import { useApp } from '../context/AppContext';
 
@@ -12,10 +12,10 @@ export default function SportsShowcase({ onSelectSport }) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const categories = [
-    { id: 'all', label: `All Events (${displaySports.length})` },
-    { id: 'athletics', label: `Track & Field Athletics (${displaySports.filter(s => s.category === 'athletics').length})` },
-    { id: 'team', label: `Team Sports (${displaySports.filter(s => s.category === 'team').length})` },
-    { id: 'indoor', label: `Racket & Board Games (${displaySports.filter(s => s.category === 'indoor').length})` },
+    { id: 'all', label: 'All Events', count: displaySports.length, icon: '🏆' },
+    { id: 'athletics', label: 'Track & Field', count: displaySports.filter(s => s.category === 'athletics').length, icon: '🏃' },
+    { id: 'team', label: 'Team Sports', count: displaySports.filter(s => s.category === 'team').length, icon: '⚽' },
+    { id: 'indoor', label: 'Rackets & Boards', count: displaySports.filter(s => s.category === 'indoor').length, icon: '🏸' },
   ];
 
   const sportIcons = {
@@ -43,156 +43,134 @@ export default function SportsShowcase({ onSelectSport }) {
 
   const filteredSports = displaySports.filter(sport => {
     const matchesCategory = activeCategory === 'all' || sport.category === activeCategory;
-    const matchesSearch = sport.title.toLowerCase().includes(searchTerm.toLowerCase()) || sport.venue.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (sport.title || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (sport.venue || '').toLowerCase().includes(searchTerm.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 
   return (
-    <section id="sports" className="py-24 bg-slate-50/60 relative overflow-hidden select-none">
+    <section id="sports" className="py-16 sm:py-20 bg-slate-50/60 relative overflow-hidden select-none">
       
-      {/* Radial Ambient Glow */}
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[850px] h-[850px] bg-blue-500/5 rounded-full blur-[180px] pointer-events-none" />
+      {/* Ambient Radial Glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-blue-500/5 rounded-full blur-[160px] pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.5 }}
-          className="text-center max-w-3xl mx-auto mb-12"
-        >
-          <div className="inline-flex items-center gap-2 px-5 py-2 bg-white text-blue-600 border border-blue-200/90 rounded-full text-xs font-black uppercase tracking-widest mb-3 shadow-sm">
-            <Trophy size={15} className="text-amber-500" /> Championships & Sports Roster
+        {/* Compact Header */}
+        <div className="text-center max-w-2xl mx-auto mb-8">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-white text-blue-600 border border-blue-200/90 rounded-full text-xs font-black uppercase tracking-widest mb-2.5 shadow-sm">
+            <Trophy size={14} className="text-amber-500" /> GCEK Sports Roster
           </div>
           
-          <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-3">
-            GCEK Sports Disciplines & Athletics
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mb-2">
+            Sports Disciplines & Championships
           </h2>
           
-          <p className="text-slate-600 text-base font-medium">
-            Explore sports by division (Boys / Girls), day, timing, and venue. Click any sport to view official rulebooks.
+          <p className="text-slate-600 text-xs sm:text-sm font-semibold">
+            Filter by sport category or search by venue. Click any sport tile to view rules & guidelines.
           </p>
-        </motion.div>
+        </div>
 
-        {/* Filter Bar & Search */}
-        <div className="flex flex-wrap items-center justify-between gap-4 bg-white/90 backdrop-blur-md border border-slate-200/90 rounded-3xl p-3.5 mb-8 shadow-sm">
+        {/* Compact Filter Bar & Search Row */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-2.5 mb-6 shadow-sm">
           
-          {/* Category Pills (Horizontal Scroll on Mobile) */}
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 sm:pb-0 w-full sm:w-auto">
-            {categories.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveCategory(tab.id)}
-                className={`relative px-4 py-2 rounded-2xl font-black text-xs transition-all ${
-                  activeCategory === tab.id
-                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {activeCategory === tab.id && (
-                  <motion.div
-                    layoutId="activeCategoryPillCompact"
-                    className="absolute inset-0 bg-blue-600 rounded-2xl shadow-md"
-                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  />
-                )}
-                <span className="relative z-10">{tab.label}</span>
-              </button>
-            ))}
+          {/* Category Filter Pills */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1 sm:pb-0">
+            {categories.map(cat => {
+              const isSelected = activeCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setActiveCategory(cat.id)}
+                  className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1.5 shrink-0 transition-all ${
+                    isSelected
+                      ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  <span>{cat.icon}</span>
+                  <span>{cat.label}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[0.62rem] font-bold ${
+                    isSelected ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {cat.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Search Input */}
-          <div className="relative w-full sm:w-64">
-            <Search size={15} className="absolute left-3 top-2.5 text-slate-400" />
+          {/* Compact Search Input */}
+          <div className="relative min-w-[200px] sm:w-64">
+            <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Search sport name or venue..."
+              placeholder="Search sport or venue..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-blue-600 focus:bg-white transition-all placeholder:text-slate-400"
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-blue-600 focus:bg-white transition-all placeholder:text-slate-400"
             />
           </div>
 
         </div>
 
-        {/* COMPACT SLEEK LIST (NO IMAGES) */}
-        <div className="space-y-2.5">
-          <AnimatePresence>
+        {/* COMPACT CONTROLLED SCROLL CONTAINER (FIXES LONG SCROLL!) */}
+        <div className="max-h-[480px] overflow-y-auto pr-1 sm:pr-2 space-y-2.5 custom-scrollbar rounded-2xl">
+          <AnimatePresence mode="popLayout">
             {filteredSports.length > 0 ? (
-              filteredSports.map((sport) => {
-                const icon = sportIcons[sport.title] || '🏅';
-                return (
-                  <motion.div
-                    layout
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.2 }}
-                    key={sport.id}
-                    onClick={() => onSelectSport(sport)}
-                    className="award-glass-card rounded-2xl p-4 border border-slate-200/90 bg-white hover:border-blue-500 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-3"
-                  >
-                    
-                    {/* Col 1: Category Emoji Icon + Sport Title + Category */}
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0 text-xl shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        {icon}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                {filteredSports.map((sport) => {
+                  const icon = sportIcons[sport.title] || '🏅';
+                  return (
+                    <motion.div
+                      layout
+                      initial={{ opacity: 0, scale: 0.98 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={{ duration: 0.15 }}
+                      key={sport.id || sport.title}
+                      onClick={() => onSelectSport(sport)}
+                      className="bg-white border border-slate-200/90 hover:border-blue-500 rounded-2xl p-3 sm:p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer group flex items-center justify-between gap-3"
+                    >
+                      {/* Left: Icon + Title & Division */}
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0 text-lg shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                          {icon}
+                        </div>
+
+                        <div className="min-w-0">
+                          <h3 className="font-black text-sm text-slate-900 group-hover:text-blue-600 transition-colors leading-tight truncate">
+                            {sport.title}
+                          </h3>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[0.62rem] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-2 py-0.2 rounded-full uppercase tracking-wider">
+                              {sport.divisionName || 'Boys & Girls'}
+                            </span>
+                            <span className="text-[0.62rem] font-bold text-slate-400 truncate">
+                              • {sport.venue}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="min-w-0">
-                        <h3 className="font-black text-base text-slate-900 group-hover:text-blue-600 transition-colors leading-tight truncate">
-                          {sport.title}
-                        </h3>
-                        <span className="text-[0.68rem] font-bold text-slate-500 uppercase tracking-wider block">
-                          {sport.categoryName}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Col 2: Metadata Badges Group */}
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      
-                      {/* Division Badge */}
-                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-amber-50 text-amber-900 border border-amber-200/90 rounded-full text-[0.7rem] font-black uppercase tracking-wide">
-                        <Users size={12} className="text-amber-600" />
-                        {sport.divisionName}
-                      </span>
-
-                      {/* Day & Timing Badge */}
-                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-slate-100 text-slate-800 rounded-full text-[0.7rem] font-extrabold">
-                        <Clock size={12} className="text-blue-600" />
-                        {sport.time}
-                      </span>
-
-                      {/* Venue Chip */}
-                      <span className="inline-flex items-center gap-1 px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-full text-[0.7rem] font-extrabold">
-                        <MapPin size={12} className="text-emerald-600" />
-                        {sport.venue}
-                      </span>
-
-                    </div>
-
-                    {/* Col 3: Rules Action Button */}
-                    <div className="pt-1 sm:pt-0 shrink-0">
+                      {/* Right: Quick Rules Button */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           onSelectSport(sport);
                         }}
-                        className="w-full sm:w-auto px-4 py-1.5 bg-slate-900 group-hover:bg-blue-600 text-white font-black text-[0.75rem] rounded-full transition-all flex items-center justify-center gap-1 shadow-sm"
+                        className="px-3 py-1.5 bg-slate-900 group-hover:bg-blue-600 text-white font-black text-[0.7rem] rounded-xl transition-all flex items-center gap-1 shrink-0 shadow-sm"
                       >
                         <span>Rules</span>
-                        <ChevronRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                        <ChevronRight size={13} className="group-hover:translate-x-0.5 transition-transform" />
                       </button>
-                    </div>
 
-                  </motion.div>
-                );
-              })
+                    </motion.div>
+                  );
+                })}
+              </div>
             ) : (
-              <div className="p-8 text-center text-slate-500 font-bold bg-white rounded-2xl border border-slate-200">
+              <div className="p-8 text-center text-slate-400 font-bold bg-white rounded-2xl border border-slate-200 text-xs">
                 No sports events found matching "{searchTerm}".
               </div>
             )}
