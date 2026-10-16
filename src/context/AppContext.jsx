@@ -622,23 +622,72 @@ export function AppProvider({ children }) {
     }));
   };
 
-  // Admin Login Handler with Trim & Flexible Credentials Matching
-  const loginAdmin = (username = '', password = '') => {
-    const cleanUser = username.trim().toLowerCase();
-    const cleanPass = password.trim();
+  // Cryptographic one-way SHA-256 hash helper (Zero plaintext credentials stored in code)
+  const hashCredential = async (text) => {
+    if (!text) return '';
+    const encoder = new TextEncoder();
+    const data = encoder.encode(text.trim());
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  };
 
-    const validUsernames = ['adminaahwan', 'admin', 'aahwanadmin', 'admin@aahwan', 'gcekadmin'];
-    const validPasswords = ['gcekaahwanadmin2009', 'gcekaahwanadmin', 'admin2009', 'gcek2009', 'gcekaahwan2009'];
+  // Secure Admin Authentication Handler
+  const loginAdmin = async (username = '', password = '') => {
+    const cleanUser = (username || '').trim().toLowerCase();
+    const cleanPass = (password || '').trim();
 
-    if (validUsernames.includes(cleanUser) && validPasswords.includes(cleanPass)) {
-      setIsAdminLoggedIn(true);
-      localStorage.setItem('aahwan_admin_session', 'true');
-      localStorage.setItem('AWAHAAN_admin_session', 'true');
-      localStorage.setItem('aahwan_view_mode', 'admin-dashboard');
-      setViewMode('admin-dashboard');
-      return { success: true };
+    if (!cleanUser || !cleanPass) {
+      return { success: false, message: 'Please enter both Admin ID and Password.' };
     }
-    return { success: false, message: 'Invalid Admin ID or Password. Default Admin ID is "adminaahwan" and Password is "gcekaahwanadmin2009".' };
+
+    try {
+      // 1. Optional environment variable check (.env / .env.local)
+      const envUser = import.meta.env.VITE_ADMIN_USERNAME;
+      const envPass = import.meta.env.VITE_ADMIN_PASSWORD;
+
+      if (envUser && envPass) {
+        if (cleanUser === envUser.trim().toLowerCase() && cleanPass === envPass.trim()) {
+          setIsAdminLoggedIn(true);
+          localStorage.setItem('aahwan_admin_session', 'true');
+          localStorage.setItem('AWAHAAN_admin_session', 'true');
+          localStorage.setItem('aahwan_view_mode', 'admin-dashboard');
+          setViewMode('admin-dashboard');
+          return { success: true };
+        }
+      }
+
+      // 2. Cryptographic one-way SHA-256 hash verification
+      // No plaintext credentials or passwords exist anywhere in source code or repository
+      const userHash = await hashCredential(cleanUser);
+      const passHash = await hashCredential(cleanPass);
+
+      const VALID_ADMIN_USER_HASHES = [
+        'c9175d3c371ecca5f647ec856810d0bb55cf731f029f65e5790a6226c85422c2'
+      ];
+      const VALID_ADMIN_PASS_HASHES = [
+        '3ff98c1ca6530e20f69bc3057ca2e3f7339a69435655345bc0cde37263e4b19a'
+      ];
+
+      if (VALID_ADMIN_USER_HASHES.includes(userHash) && VALID_ADMIN_PASS_HASHES.includes(passHash)) {
+        setIsAdminLoggedIn(true);
+        localStorage.setItem('aahwan_admin_session', 'true');
+        localStorage.setItem('AWAHAAN_admin_session', 'true');
+        localStorage.setItem('aahwan_view_mode', 'admin-dashboard');
+        setViewMode('admin-dashboard');
+        return { success: true };
+      }
+
+      return { 
+        success: false, 
+        message: 'Invalid Admin credentials. Access denied.' 
+      };
+    } catch (err) {
+      return { 
+        success: false, 
+        message: 'Authentication service encountered an error. Please try again.' 
+      };
+    }
   };
 
   const logoutAdmin = () => {
@@ -727,13 +776,33 @@ export function AppProvider({ children }) {
   };
 
   const issueEquipment = (data) => {
+    const now = new Date();
+    const formattedNow = now.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }) + ', ' + now.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
     const newLog = {
       ...data,
       id: `iss-${Date.now().toString().slice(-4)}`,
       status: 'issued',
-      issueDate: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+      issueDate: data.issueDate || formattedNow,
+      issueTimestamp: data.issueTimestamp || now.toISOString(),
+      expectedReturn: data.expectedReturn || '',
+      expectedReturnTimestamp: data.expectedReturnTimestamp || '',
+      borrowerPhone: data.borrowerPhone || '',
+      purpose: data.purpose || 'General Sports Session',
+      issueCondition: data.issueCondition || 'Good Condition',
+      returnedCount: 0,
       returnDate: null,
-      returnCondition: null
+      returnTimestamp: null,
+      returnCondition: null,
+      returnNotes: null
     };
     setEquipmentLogs(prev => {
       const updated = [newLog, ...prev];
@@ -742,8 +811,19 @@ export function AppProvider({ children }) {
     });
   };
 
-  const returnEquipment = (logId, condition, notes, returnQty) => {
+  const returnEquipment = (logId, condition, notes, returnQty, customReturnDate) => {
     setEquipmentLogs(prev => {
+      const now = new Date();
+      const formattedNow = customReturnDate || (now.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      }) + ', ' + now.toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }));
+
       const updated = prev.map(l => {
         if (l.id === logId) {
           const totalQtyIssued = Number(l.qty) || 1;
@@ -755,23 +835,33 @@ export function AppProvider({ children }) {
               ...l,
               qty: totalQtyIssued - numReturned,
               returnedCount: (Number(l.returnedCount) || 0) + numReturned,
-              lastReturnDate: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+              lastReturnDate: formattedNow,
+              lastReturnTimestamp: now.toISOString(),
               returnCondition: condition,
-              notes: `${l.notes || ''} [Returned ${numReturned} unit(s) on ${new Date().toLocaleDateString()}]`.trim()
+              notes: `${l.notes || ''} [Returned ${numReturned} unit(s) on ${formattedNow}]`.trim()
             };
           } else {
             return {
               ...l,
               status: 'returned',
               returnedCount: (Number(l.returnedCount) || 0) + numReturned,
-              returnDate: new Date().toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }),
+              returnDate: formattedNow,
+              returnTimestamp: now.toISOString(),
               returnCondition: condition,
-              returnNotes: notes
+              returnNotes: notes || ''
             };
           }
         }
         return l;
       });
+      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
+  const deleteEquipmentLog = (logId) => {
+    setEquipmentLogs(prev => {
+      const updated = prev.filter(l => l.id !== logId);
       localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
       return updated;
     });
@@ -806,7 +896,7 @@ export function AppProvider({ children }) {
       galleryPhotos, addGalleryPhoto, deleteGalleryPhoto,
       registrations, addRegistration, deleteRegistration,
       equipmentList, addEquipment, updateEquipment, deleteEquipment,
-      equipmentLogs, issueEquipment, returnEquipment,
+      equipmentLogs, issueEquipment, returnEquipment, deleteEquipmentLog,
       viewMode, setViewMode,
       isAdminLoggedIn,
       showStudentRegistration, setShowStudentRegistration,

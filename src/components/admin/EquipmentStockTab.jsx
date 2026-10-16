@@ -54,6 +54,7 @@ export default function EquipmentStockTab() {
   // Table Sorting State
   const [sortField, setSortField] = useState('category'); // 'name' | 'category' | 'location' | 'totalQty' | 'loaned' | 'available'
   const [sortDirection, setSortDirection] = useState('asc'); // 'asc' | 'desc'
+  const [viewLayout, setViewLayout] = useState('list'); // 'list' | 'grouped'
 
   // Multi-Selection State
   const [selectedItemIds, setSelectedItemIds] = useState([]);
@@ -250,7 +251,9 @@ export default function EquipmentStockTab() {
       if (sortField === 'category') {
         valA = (a.category || '').toLowerCase();
         valB = (b.category || '').toLowerCase();
-        return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        const catCmp = sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
+        if (catCmp !== 0) return catCmp;
+        return (a.name || '').localeCompare(b.name || '');
       }
       if (sortField === 'location') {
         valA = (a.location || '').toLowerCase();
@@ -278,6 +281,30 @@ export default function EquipmentStockTab() {
       return 0;
     });
   }, [equipmentList, selectedSport, searchTerm, stockStatusFilter, conditionFilter, sortField, sortDirection, activeIssuedLogs]);
+
+  // Grouped equipment by sport discipline (for sport-wise inventory view)
+  const groupedEquipmentBySport = useMemo(() => {
+    const groups = {};
+    filteredEquipment.forEach(item => {
+      const cat = item.category || 'General';
+      if (!groups[cat]) {
+        groups[cat] = [];
+      }
+      groups[cat].push(item);
+    });
+    return groups;
+  }, [filteredEquipment]);
+
+  // Sorted Sport Groups for sport-wise grouped layout
+  const sortedSportGroups = useMemo(() => {
+    const entries = Object.entries(groupedEquipmentBySport);
+    return entries.sort(([catA], [catB]) => {
+      if (sortField === 'category') {
+        return sortDirection === 'asc' ? catA.localeCompare(catB) : catB.localeCompare(catA);
+      }
+      return catA.localeCompare(catB);
+    });
+  }, [groupedEquipmentBySport, sortField, sortDirection]);
 
   // Select All Toggle
   const isAllSelected = filteredEquipment.length > 0 && selectedItemIds.length === filteredEquipment.length;
@@ -478,309 +505,736 @@ export default function EquipmentStockTab() {
 
   const emojiOptions = ['🏏', '⚽', '🏐', '🏸', '🏃', '♟️', '🏓', '🏀', '🤼', '🏊', '🏋️', '🎯', '🥇', '🏆', '🥊', '🥋', '👟', '⛳'];
 
-  const hasActiveFilters = searchTerm || selectedSport !== 'all' || stockStatusFilter !== 'all' || conditionFilter !== 'all';
+  const hasActiveFilters = 
+    searchTerm || 
+    selectedSport !== 'all' || 
+    stockStatusFilter !== 'all' || 
+    conditionFilter !== 'all' || 
+    sortField !== 'category' || 
+    sortDirection !== 'asc' || 
+    viewLayout !== 'list';
 
   const resetAllFilters = () => {
     setSearchTerm('');
     setSelectedSport('all');
     setStockStatusFilter('all');
     setConditionFilter('all');
+    setSortField('category');
+    setSortDirection('asc');
+    setViewLayout('list');
+  };
+
+  // Render function for Desktop Row (shared between flat list and grouped layouts)
+  const renderDesktopRow = (item) => {
+    const categoryObj = allCategoryObjects.find(c => c.id === item.category) || { icon: '🏆', name: item.category || 'General' };
+    
+    // Active loans for this specific equipment item
+    const itemLoans = activeIssuedLogs.filter(l => l.equipmentId === item.id);
+    const issuedForThis = itemLoans.reduce((a, b) => a + (Number(b.qty) || 0), 0);
+    
+    const availForThis = Math.max(0, (Number(item.totalQty) || 0) - issuedForThis);
+    const isLow = availForThis > 0 && availForThis <= 2;
+    const isOut = availForThis === 0;
+
+    const isSelected = selectedItemIds.includes(item.id);
+    const isExpanded = expandedRowIds.includes(item.id);
+
+    return (
+      <React.Fragment key={item.id}>
+        <tr 
+          className={`transition-colors border-b border-slate-100 ${
+            isSelected 
+              ? 'bg-amber-50/70 border-l-2 border-l-amber-500' 
+              : 'hover:bg-slate-50/80'
+          }`}
+        >
+          {/* Checkbox */}
+          <td className="py-2 px-2.5 text-center w-8">
+            <button
+              onClick={() => toggleSelectItem(item.id)}
+              className="p-0.5 text-slate-400 hover:text-amber-500 transition cursor-pointer flex items-center justify-center mx-auto"
+            >
+              {isSelected ? (
+                <CheckSquare size={13} className="text-amber-600" />
+              ) : (
+                <Square size={13} className="hover:text-slate-600" />
+              )}
+            </button>
+          </td>
+
+          {/* Equipment Item Name + Discipline + Location */}
+          <td className="py-2 px-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-sm shrink-0 p-1 bg-slate-100 rounded-md border border-slate-200/80">
+                {categoryObj.icon}
+              </span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="font-bold text-slate-900 text-xs truncate">
+                    {item.name}
+                  </span>
+                  <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-semibold text-[0.62rem] border border-slate-200">
+                    {item.category || 'General'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-[0.62rem] text-slate-400 truncate">
+                  {item.location && <span>{item.location}</span>}
+                  {item.notes && <span>• {item.notes}</span>}
+                </div>
+              </div>
+            </div>
+          </td>
+
+          {/* Total Quantity (Compact Stepper) */}
+          <td className="py-2 px-2.5 text-center w-28">
+            {inlineEditingId === item.id ? (
+              <input
+                type="number"
+                min="1"
+                autoFocus
+                value={inlineQtyValue}
+                onChange={(e) => setInlineQtyValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveInlineQty(item);
+                  if (e.key === 'Escape') setInlineEditingId(null);
+                }}
+                onBlur={() => handleSaveInlineQty(item)}
+                className="w-12 px-1 py-0.2 text-center text-xs font-black bg-white border border-amber-500 rounded text-slate-900 focus:outline-none"
+              />
+            ) : (
+              <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-md border border-slate-200 font-mono text-xs shadow-2xs">
+                <button
+                  onClick={() => handleQuickQtyChange(item, -1)}
+                  className="px-1 text-slate-500 hover:text-slate-900 rounded cursor-pointer"
+                  title="-1"
+                >
+                  -
+                </button>
+                <span 
+                  onClick={() => {
+                    setInlineEditingId(item.id);
+                    setInlineQtyValue(String(item.totalQty || 1));
+                  }}
+                  className="w-7 text-center font-bold text-slate-900 hover:bg-amber-100 rounded cursor-text"
+                  title="Click to edit quantity"
+                >
+                  {item.totalQty}
+                </span>
+                <button
+                  onClick={() => handleQuickQtyChange(item, 1)}
+                  className="px-1 text-slate-500 hover:text-slate-900 rounded cursor-pointer"
+                  title="+1"
+                >
+                  +
+                </button>
+              </div>
+            )}
+          </td>
+
+          {/* In Store Available Count */}
+          <td className="py-2 px-2.5 text-center w-28">
+            <span className={`px-2 py-0.5 rounded-md font-mono text-xs font-bold inline-block ${
+              isOut
+                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                : isLow
+                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+            }`}>
+              {availForThis} in store
+            </span>
+          </td>
+
+          {/* On Loan Count */}
+          <td className="py-2 px-2.5 text-center w-24">
+            {issuedForThis > 0 ? (
+              <button
+                onClick={() => toggleRowExpand(item.id)}
+                className="px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-mono text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition"
+                title="View student borrowers"
+              >
+                <span>{issuedForThis} loaned</span>
+                {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
+              </button>
+            ) : (
+              <span className="text-slate-300 text-xs font-mono">-</span>
+            )}
+          </td>
+
+          {/* Condition */}
+          <td className="py-2 px-2.5 text-xs text-slate-600">
+            <span className="truncate block max-w-[120px]">
+              {item.condition || 'Good'}
+            </span>
+          </td>
+
+          {/* Actions: Quick Issue, Edit, Delete */}
+          <td className="py-2 px-2.5 text-right whitespace-nowrap w-28">
+            <div className="inline-flex items-center gap-1 justify-end">
+              <button
+                onClick={() => openQuickIssue(item)}
+                disabled={availForThis <= 0}
+                className={`px-2 py-0.5 rounded text-xs font-bold inline-flex items-center gap-0.5 transition ${
+                  availForThis > 0
+                    ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-2xs cursor-pointer active:scale-95'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                }`}
+                title={availForThis > 0 ? `Issue ${item.name}` : 'Out of stock'}
+              >
+                <Zap size={10} className={availForThis > 0 ? 'fill-slate-950' : ''} />
+                <span>Issue</span>
+              </button>
+
+              <button
+                onClick={() => openEditModal(item)}
+                className="p-1 text-slate-400 hover:text-blue-600 rounded cursor-pointer transition"
+                title="Edit item"
+              >
+                <Edit2 size={12} />
+              </button>
+
+              <button
+                onClick={() => {
+                  if (confirm(`Remove "${item.name}" from inventory?`)) {
+                    deleteEquipment(item.id);
+                  }
+                }}
+                className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer transition"
+                title="Delete item"
+              >
+                <Trash2 size={12} />
+              </button>
+            </div>
+          </td>
+        </tr>
+
+        {/* Collapsible Student Borrower Drawer */}
+        {isExpanded && (
+          <tr className="bg-slate-50/90 border-b border-slate-200 text-xs">
+            <td colSpan={7} className="py-2.5 px-4 sm:px-6">
+              <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-2xs space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <User size={12} className="text-amber-600" />
+                    <span>Active Borrowers for "{item.name}" ({itemLoans.length})</span>
+                  </span>
+                  {availForThis > 0 && (
+                    <button
+                      onClick={() => openQuickIssue(item)}
+                      className="text-[0.68rem] font-bold text-amber-600 hover:text-amber-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus size={11} /> Issue another unit
+                    </button>
+                  )}
+                </div>
+
+                {itemLoans.length > 0 ? (
+                  <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                    {itemLoans.map(log => (
+                      <div key={log.id} className="flex items-center justify-between p-1.5 rounded bg-amber-50/50 border border-amber-200/70 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-900">{log.borrowerName}</span>
+                          <span className="text-slate-500 text-[0.65rem] font-mono">
+                            ({log.rollNo} • {log.branch})
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-amber-800 text-xs">
+                            {log.qty} unit{log.qty > 1 ? 's' : ''}
+                          </span>
+                          <span className="text-[0.62rem] text-slate-400">{log.issueDate}</span>
+                          <button
+                            onClick={() => {
+                              if (confirm(`Accept return of ${log.qty}x "${item.name}" from ${log.borrowerName}?`)) {
+                                returnEquipment(log.id, 'Good Condition', 'Returned via stock desk', log.qty);
+                              }
+                            }}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[0.65rem] font-bold cursor-pointer"
+                          >
+                            Return
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[0.68rem] text-slate-400 italic">
+                    No active student loans for this item.
+                  </p>
+                )}
+              </div>
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
+    );
+  };
+
+  // Render function for Mobile Card (shared between flat list and grouped layouts)
+  const renderMobileCard = (item) => {
+    const categoryObj = allCategoryObjects.find(c => c.id === item.category) || { icon: '🏆', name: item.category || 'General' };
+    const itemLoans = activeIssuedLogs.filter(l => l.equipmentId === item.id);
+    const issuedForThis = itemLoans.reduce((a, b) => a + (Number(b.qty) || 0), 0);
+    const availForThis = Math.max(0, (Number(item.totalQty) || 0) - issuedForThis);
+    const isLow = availForThis > 0 && availForThis <= 2;
+    const isOut = availForThis === 0;
+    const isExpanded = expandedRowIds.includes(item.id);
+
+    return (
+      <div 
+        key={`card-eq-${item.id}`}
+        className="bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs space-y-2 transition-all"
+      >
+        {/* Main Row: Emoji, Name, Discipline, Status Badge */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base shrink-0 p-1 bg-slate-100 rounded-lg border border-slate-200">
+              {categoryObj.icon}
+            </span>
+            <div className="min-w-0">
+              <h4 className="font-bold text-slate-900 text-xs truncate">
+                {item.name}
+              </h4>
+              <span className="text-[0.62rem] text-slate-400 block truncate">
+                {item.category || 'General'} {item.location ? `• ${item.location}` : ''}
+              </span>
+            </div>
+          </div>
+
+          <div className="shrink-0">
+            {isOut ? (
+              <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-black text-[0.62rem] border border-rose-200">
+                Out of Stock
+              </span>
+            ) : isLow ? (
+              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 font-black text-[0.62rem] border border-amber-200">
+                Low ({availForThis})
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold text-[0.62rem] border border-emerald-200">
+                {availForThis} in store
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Numbers & Action Bar */}
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
+          <div className="flex items-center gap-2 text-[0.65rem] text-slate-500 font-mono">
+            <span>Total: <strong className="text-slate-800">{item.totalQty}</strong></span>
+            <span>•</span>
+            {issuedForThis > 0 ? (
+              <button
+                onClick={() => toggleRowExpand(item.id)}
+                className="text-amber-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+              >
+                Loaned: {issuedForThis} {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+              </button>
+            ) : (
+              <span>Loaned: 0</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1">
+            {/* Quick Issue */}
+            <button
+              onClick={() => openQuickIssue(item)}
+              disabled={availForThis <= 0}
+              className={`px-2 py-0.5 rounded-md text-[0.65rem] font-bold flex items-center gap-0.5 transition ${
+                availForThis > 0
+                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 cursor-pointer active:scale-95'
+                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+              }`}
+            >
+              <Zap size={10} className={availForThis > 0 ? 'fill-slate-950' : ''} />
+              <span>Issue</span>
+            </button>
+
+            {/* Stepper */}
+            <div className="inline-flex items-center bg-slate-100 rounded-md border border-slate-200 font-mono text-[0.65rem]">
+              <button
+                onClick={() => handleQuickQtyChange(item, -1)}
+                className="px-1 py-0.5 text-slate-600 hover:text-slate-900 cursor-pointer"
+                title="-1"
+              >
+                -
+              </button>
+              <button
+                onClick={() => handleQuickQtyChange(item, 1)}
+                className="px-1 py-0.5 text-slate-600 hover:text-slate-900 cursor-pointer"
+                title="+1"
+              >
+                +
+              </button>
+            </div>
+
+            {/* Edit */}
+            <button
+              onClick={() => openEditModal(item)}
+              className="p-1 text-slate-400 hover:text-blue-600 rounded cursor-pointer"
+              title="Edit"
+            >
+              <Edit2 size={11} />
+            </button>
+
+            {/* Delete */}
+            <button
+              onClick={() => {
+                if (confirm(`Remove "${item.name}" from inventory?`)) {
+                  deleteEquipment(item.id);
+                }
+              }}
+              className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
+              title="Delete"
+            >
+              <Trash2 size={11} />
+            </button>
+          </div>
+        </div>
+
+        {/* Collapsible Active Loans Drawer */}
+        {isExpanded && issuedForThis > 0 && (
+          <div className="mt-1.5 p-2 bg-amber-50/60 rounded-lg border border-amber-200/80 space-y-1 text-xs">
+            <span className="text-[0.6rem] font-bold text-amber-800 uppercase tracking-wider block">
+              Active Student Loans ({itemLoans.length})
+            </span>
+            {itemLoans.map(log => (
+              <div key={log.id} className="flex items-center justify-between text-[0.65rem] bg-white p-1.5 rounded border border-amber-100">
+                <span className="font-bold text-slate-800">{log.borrowerName} ({log.rollNo} • {log.qty}u)</span>
+                <button
+                  onClick={() => {
+                    if (confirm(`Accept return from ${log.borrowerName}?`)) {
+                      returnEquipment(log.id, 'Good Condition', 'Returned via stock desk', log.qty);
+                    }
+                  }}
+                  className="px-1.5 py-0.2 bg-emerald-600 text-white font-bold rounded text-[0.6rem] cursor-pointer"
+                >
+                  Return
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
     <div className="space-y-3.5 select-none text-slate-800">
       
-      {/* 1. TOP HEADER & INSTANT ACTIONS BAR */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 border border-amber-500/20">
-              <Package size={17} />
-            </div>
-            <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
-              <span>Stock Inventory Grid</span>
-              <span className="px-2 py-0.5 rounded-full text-[0.62rem] font-black bg-amber-100 text-amber-800 border border-amber-200">
-                {totalItemsCount} Gear Items
-              </span>
-            </h3>
+      {/* 1. COMPACT TOP HEADER & QUICK ACTIONS */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-200">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 border border-amber-500/20">
+            <Package size={16} />
           </div>
-          <p className="text-[0.68rem] font-semibold text-slate-500 mt-0.5 ml-8">
-            High-density tabular control for physical stock units, active student loans, locations, and instant issue desk.
-          </p>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
+              Stock Inventory
+            </h3>
+            <span className="px-2 py-0.5 rounded-full text-[0.62rem] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+              {totalItemsCount} items • {totalPhysicalUnits} units
+            </span>
+          </div>
         </div>
 
-        {/* Global Action Buttons */}
+        {/* Compact Action Buttons */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <button
             onClick={() => handleExportCSV()}
-            title="Export full inventory as CSV"
-            className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 hover:border-slate-300 shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
+            title="Export CSV"
+            className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
           >
-            <Download size={13} className="text-emerald-600" />
-            <span className="hidden sm:inline">Export CSV</span>
+            <Download size={12} className="text-emerald-600" />
+            <span className="hidden sm:inline">Export</span>
           </button>
 
           <button
             onClick={handlePrintSheet}
-            title="Print inventory sheet"
-            className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 hover:border-slate-300 shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
+            title="Print Inventory Sheet"
+            className="p-1.5 sm:px-2 sm:py-1 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1 transition cursor-pointer"
           >
-            <Printer size={13} className="text-slate-500" />
+            <Printer size={12} className="text-slate-500" />
             <span className="hidden sm:inline">Print</span>
           </button>
 
           <button
             onClick={() => setShowAddCategoryModal(true)}
-            className="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-xs rounded-xl flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+            className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
           >
-            <FolderPlus size={13} className="text-amber-400" />
-            <span>New Category</span>
+            <FolderPlus size={12} className="text-amber-600" />
+            <span className="hidden sm:inline">Category</span>
           </button>
 
           <button
             onClick={() => openAddModal(selectedSport)}
-            className="px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition transform active:scale-95 cursor-pointer"
+            className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-lg flex items-center gap-1 shadow-2xs transition transform active:scale-95 cursor-pointer"
           >
-            <Plus size={15} />
-            <span>Add Stock Item</span>
+            <Plus size={14} />
+            <span>Add Item</span>
           </button>
         </div>
       </div>
 
-      {/* 2. INTERACTIVE KPI METRIC FILTER TILES */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-        {/* Metric 1: Total Gear */}
+      {/* 2. COMPACT STATUS PILL FILTER BAR */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none text-xs">
+        {/* All Items */}
         <button
-          onClick={() => { setStockStatusFilter('all'); setSelectedSport('all'); }}
-          className={`text-left p-2.5 rounded-xl border transition cursor-pointer ${
-            stockStatusFilter === 'all' && selectedSport === 'all'
-              ? 'bg-amber-50/70 border-amber-300 ring-2 ring-amber-400/30'
-              : 'bg-white hover:bg-slate-50 border-slate-200'
+          onClick={() => setStockStatusFilter('all')}
+          className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer ${
+            stockStatusFilter === 'all'
+              ? 'bg-slate-900 text-white shadow-2xs'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
           }`}
         >
-          <div className="flex items-center justify-between text-slate-500 text-[0.6rem] font-bold uppercase tracking-wider">
-            <span>All Gear</span>
-            <Package size={13} className="text-slate-400" />
-          </div>
-          <div className="text-lg font-black text-slate-900 mt-0.5">{totalItemsCount}</div>
-          <p className="text-[0.58rem] font-semibold text-slate-400 truncate">Total SKUs Tracked</p>
+          <span>All Items</span>
+          <span className={`px-1.5 py-0.2 rounded text-[0.62rem] font-black ${
+            stockStatusFilter === 'all' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-700'
+          }`}>
+            {totalItemsCount}
+          </span>
         </button>
 
-        {/* Metric 2: Total Units */}
-        <div className="p-2.5 rounded-xl border border-slate-200 bg-white">
-          <div className="flex items-center justify-between text-slate-500 text-[0.6rem] font-bold uppercase tracking-wider">
-            <span>Total Units</span>
-            <PackageCheck size={13} className="text-blue-500" />
-          </div>
-          <div className="text-lg font-black text-slate-900 mt-0.5">{totalPhysicalUnits}</div>
-          <p className="text-[0.58rem] font-semibold text-slate-400 truncate">Physical Pieces</p>
-        </div>
-
-        {/* Metric 3: In Stock Ready */}
+        {/* In Store */}
         <button
           onClick={() => setStockStatusFilter(prev => prev === 'available' ? 'all' : 'available')}
-          className={`text-left p-2.5 rounded-xl border transition cursor-pointer ${
+          className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer ${
             stockStatusFilter === 'available'
-              ? 'bg-emerald-50 border-emerald-300 ring-2 ring-emerald-400/30'
-              : 'bg-white hover:bg-slate-50 border-slate-200'
+              ? 'bg-emerald-600 text-white shadow-2xs'
+              : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200'
           }`}
         >
-          <div className="flex items-center justify-between text-slate-500 text-[0.6rem] font-bold uppercase tracking-wider">
-            <span>In Store</span>
-            <CheckCircle2 size={13} className="text-emerald-500" />
-          </div>
-          <div className="text-lg font-black text-emerald-600 mt-0.5">{totalAvailableUnits}</div>
-          <p className="text-[0.58rem] font-bold text-emerald-600 truncate">{stockMetrics.availableCount} types ready</p>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+          <span>In Store</span>
+          <span className={`px-1.5 py-0.2 rounded text-[0.62rem] font-black ${
+            stockStatusFilter === 'available' ? 'bg-white/20 text-white' : 'bg-emerald-100 text-emerald-800'
+          }`}>
+            {totalAvailableUnits}
+          </span>
         </button>
 
-        {/* Metric 4: Low Stock */}
-        <button
-          onClick={() => setStockStatusFilter(prev => prev === 'low' ? 'all' : 'low')}
-          className={`text-left p-2.5 rounded-xl border transition cursor-pointer ${
-            stockStatusFilter === 'low'
-              ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-400/30'
-              : 'bg-white hover:bg-slate-50 border-slate-200'
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-500 text-[0.6rem] font-bold uppercase tracking-wider">
-            <span>Low Stock</span>
-            <AlertTriangle size={13} className="text-amber-500" />
-          </div>
-          <div className="text-lg font-black text-amber-600 mt-0.5">{stockMetrics.lowCount}</div>
-          <p className="text-[0.58rem] font-bold text-amber-600 truncate">≤ 2 units remain</p>
-        </button>
-
-        {/* Metric 5: Depleted */}
-        <button
-          onClick={() => setStockStatusFilter(prev => prev === 'out' ? 'all' : 'out')}
-          className={`text-left p-2.5 rounded-xl border transition cursor-pointer ${
-            stockStatusFilter === 'out'
-              ? 'bg-rose-50 border-rose-300 ring-2 ring-rose-400/30'
-              : 'bg-white hover:bg-slate-50 border-slate-200'
-          }`}
-        >
-          <div className="flex items-center justify-between text-slate-500 text-[0.6rem] font-bold uppercase tracking-wider">
-            <span>Out of Stock</span>
-            <AlertCircle size={13} className="text-rose-500" />
-          </div>
-          <div className="text-lg font-black text-rose-600 mt-0.5">{stockMetrics.outCount}</div>
-          <p className="text-[0.58rem] font-bold text-rose-600 truncate">0 available</p>
-        </button>
-
-        {/* Metric 6: Loaned Out */}
+        {/* On Loan */}
         <button
           onClick={() => setStockStatusFilter(prev => prev === 'loaned' ? 'all' : 'loaned')}
-          className={`text-left p-2.5 rounded-xl border transition cursor-pointer ${
+          className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer ${
             stockStatusFilter === 'loaned'
-              ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/30'
-              : 'bg-white hover:bg-slate-50 border-slate-200'
+              ? 'bg-amber-600 text-white shadow-2xs'
+              : 'bg-white text-amber-900 hover:bg-amber-50 border border-amber-200'
           }`}
         >
-          <div className="flex items-center justify-between text-slate-500 text-[0.6rem] font-bold uppercase tracking-wider">
-            <span>On Loan</span>
-            <ArrowUpRight size={13} className="text-amber-500" />
-          </div>
-          <div className="text-lg font-black text-amber-700 mt-0.5">{totalIssuedUnits}</div>
-          <p className="text-[0.58rem] font-bold text-amber-700 truncate">{activeIssuedLogs.length} active loans</p>
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+          <span>On Loan</span>
+          <span className={`px-1.5 py-0.2 rounded text-[0.62rem] font-black ${
+            stockStatusFilter === 'loaned' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-900'
+          }`}>
+            {totalIssuedUnits}
+          </span>
+        </button>
+
+        {/* Low Stock */}
+        <button
+          onClick={() => setStockStatusFilter(prev => prev === 'low' ? 'all' : 'low')}
+          className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer ${
+            stockStatusFilter === 'low'
+              ? 'bg-amber-500 text-slate-950 shadow-2xs'
+              : 'bg-white text-amber-800 hover:bg-amber-50 border border-amber-200'
+          }`}
+        >
+          <AlertTriangle size={11} className={stockStatusFilter === 'low' ? 'text-slate-950' : 'text-amber-500'} />
+          <span>Low Stock</span>
+          <span className={`px-1.5 py-0.2 rounded text-[0.62rem] font-black ${
+            stockStatusFilter === 'low' ? 'bg-slate-950/20 text-slate-950' : 'bg-amber-100 text-amber-900'
+          }`}>
+            {stockMetrics.lowCount}
+          </span>
+        </button>
+
+        {/* Out of Stock */}
+        <button
+          onClick={() => setStockStatusFilter(prev => prev === 'out' ? 'all' : 'out')}
+          className={`px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer ${
+            stockStatusFilter === 'out'
+              ? 'bg-rose-600 text-white shadow-2xs'
+              : 'bg-white text-rose-800 hover:bg-rose-50 border border-rose-200'
+          }`}
+        >
+          <AlertCircle size={11} className={stockStatusFilter === 'out' ? 'text-white' : 'text-rose-500'} />
+          <span>Out of Stock</span>
+          <span className={`px-1.5 py-0.2 rounded text-[0.62rem] font-black ${
+            stockStatusFilter === 'out' ? 'bg-white/20 text-white' : 'bg-rose-100 text-rose-900'
+          }`}>
+            {stockMetrics.outCount}
+          </span>
         </button>
       </div>
 
-      {/* 3. FILTER & SEARCH CONTROL BAR */}
-      <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-2.5 space-y-2.5 shadow-2xs">
+      {/* 3. SLEEK UNIFIED TOOLBAR */}
+      <div className="bg-white border border-slate-200/90 rounded-xl p-1.5 sm:p-2 flex flex-wrap items-center justify-between gap-1.5 shadow-2xs">
         
-        {/* Row 1: Search + Dropdown Filters + Clear */}
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          
-          {/* Search Box */}
-          <div className="relative flex-1 min-w-[220px] max-w-sm">
-            <Search size={13} className="absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search gear name, category, location, or notes..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-7 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 transition placeholder:text-slate-400"
-            />
-            {searchTerm && (
-              <button 
-                onClick={() => setSearchTerm('')} 
-                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-700 cursor-pointer"
-                title="Clear search"
-              >
-                <X size={13} />
-              </button>
-            )}
-          </div>
-
-          {/* Secondary Controls: Status, Condition & Sort */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {/* Status Dropdown */}
-            <select
-              value={stockStatusFilter}
-              onChange={(e) => setStockStatusFilter(e.target.value)}
-              className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500 cursor-pointer"
+        {/* Search Input */}
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search size={13} className="absolute left-2.5 top-2.5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search equipment, location..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-7 pr-7 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:bg-white transition placeholder:text-slate-400"
+          />
+          {searchTerm && (
+            <button 
+              onClick={() => setSearchTerm('')} 
+              className="absolute right-2 top-2 text-slate-400 hover:text-slate-700 cursor-pointer"
+              title="Clear search"
             >
-              <option value="all">All Stock Status</option>
-              <option value="available">In Stock Ready (&gt;2)</option>
-              <option value="low">⚠️ Low Stock (1-2)</option>
-              <option value="out">⛔ Out of Stock (0)</option>
-              <option value="loaned">⚡ Currently on Loan</option>
-            </select>
-
-            {/* Condition Dropdown */}
-            <select
-              value={conditionFilter}
-              onChange={(e) => setConditionFilter(e.target.value)}
-              className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500 cursor-pointer"
-            >
-              <option value="all">All Conditions</option>
-              <option value="Brand New">Brand New</option>
-              <option value="Good Condition">Good Condition</option>
-              <option value="Fair / Used">Fair / Used</option>
-              <option value="Needs Maintenance">Needs Maintenance</option>
-            </select>
-
-            {/* Reset Filters Button */}
-            {hasActiveFilters && (
-              <button
-                onClick={resetAllFilters}
-                className="px-2.5 py-1.5 bg-slate-200/80 hover:bg-slate-300 text-slate-800 font-bold text-xs rounded-lg flex items-center gap-1 transition cursor-pointer"
-                title="Clear all active filters"
-              >
-                <RotateCcw size={11} />
-                <span>Reset</span>
-              </button>
-            )}
-          </div>
+              <X size={12} />
+            </button>
+          )}
         </div>
 
-        {/* Row 2: Category Pill Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-thin">
-          {allCategoryObjects.map(cat => {
-            const count = cat.id === 'all' 
-              ? equipmentList.length 
-              : equipmentList.filter(e => e.category === cat.id).length;
-            const isSelected = selectedSport === cat.id;
+        {/* Filters and Controls */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          
+          {/* Sport Discipline Dropdown */}
+          <select
+            value={selectedSport}
+            onChange={(e) => setSelectedSport(e.target.value)}
+            className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500 cursor-pointer"
+            title="Filter by Sport Discipline"
+          >
+            <option value="all">🏆 All Disciplines ({equipmentList.length})</option>
+            {allCategoryObjects.filter(c => c.id !== 'all').map(cat => {
+              const count = equipmentList.filter(e => e.category === cat.id).length;
+              return (
+                <option key={cat.id} value={cat.id}>
+                  {cat.icon} {cat.name} ({count})
+                </option>
+              );
+            })}
+          </select>
 
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedSport(cat.id)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 shrink-0 transition-all cursor-pointer ${
-                  isSelected 
-                    ? 'bg-amber-500 text-slate-950 font-black shadow-2xs ring-1 ring-amber-600/30' 
-                    : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <span>{cat.icon}</span>
-                <span>{cat.name}</span>
-                <span className={`px-1.5 py-0.2 rounded-full text-[0.58rem] font-black ${
-                  isSelected ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-100 text-slate-600'
-                }`}>
-                  {count}
-                </span>
-              </button>
-            );
-          })}
+          {/* Sort Dropdown */}
+          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1">
+            <ArrowUpDown size={11} className="text-amber-500 shrink-0" />
+            <select
+              value={`${sortField}-${sortDirection}`}
+              onChange={(e) => {
+                const [field, dir] = e.target.value.split('-');
+                setSortField(field);
+                setSortDirection(dir);
+              }}
+              className="bg-transparent text-xs font-bold text-slate-700 focus:outline-none cursor-pointer"
+              title="Sort inventory gear"
+            >
+              <option value="category-asc">Sport: A-Z</option>
+              <option value="category-desc">Sport: Z-A</option>
+              <option value="name-asc">Name: A-Z</option>
+              <option value="name-desc">Name: Z-A</option>
+              <option value="totalQty-desc">Stock: High-Low</option>
+              <option value="totalQty-asc">Stock: Low-High</option>
+              <option value="available-desc">In Store: High</option>
+              <option value="loaned-desc">On Loan: High</option>
+              <option value="location-asc">Location: A-Z</option>
+            </select>
+          </div>
+
+          {/* Condition Filter */}
+          <select
+            value={conditionFilter}
+            onChange={(e) => setConditionFilter(e.target.value)}
+            className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500 cursor-pointer hidden sm:block"
+            title="Filter by condition"
+          >
+            <option value="all">All Conditions</option>
+            <option value="Brand New">Brand New</option>
+            <option value="Good Condition">Good Condition</option>
+            <option value="Fair / Used">Fair / Used</option>
+            <option value="Needs Maintenance">Needs Maintenance</option>
+          </select>
+
+          {/* View Mode Toggle: Flat vs Grouped */}
+          <div className="flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setViewLayout('list')}
+              className={`px-2 py-0.5 rounded-md transition cursor-pointer text-[0.68rem] ${
+                viewLayout === 'list'
+                  ? 'bg-white text-slate-900 shadow-2xs font-black'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Continuous flat list view"
+            >
+              Flat
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setViewLayout('grouped');
+                if (sortField !== 'category') {
+                  setSortField('category');
+                  setSortDirection('asc');
+                }
+              }}
+              className={`px-2 py-0.5 rounded-md transition cursor-pointer text-[0.68rem] ${
+                viewLayout === 'grouped'
+                  ? 'bg-amber-500 text-slate-950 shadow-2xs font-black'
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Group items by sport discipline"
+            >
+              Grouped
+            </button>
+          </div>
+
+          {/* Reset Filters */}
+          {hasActiveFilters && (
+            <button
+              onClick={resetAllFilters}
+              className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-lg flex items-center gap-1 transition cursor-pointer"
+              title="Reset all active filters"
+            >
+              <RotateCcw size={10} />
+              <span>Reset</span>
+            </button>
+          )}
         </div>
       </div>
 
-      {/* 4. PREMIUM UNIFIED TABULAR GRID */}
+      {/* 4. STREAMLINED TABULAR INVENTORY GRID */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs relative">
         
-        {/* Table Container */}
-        <div className="overflow-x-auto">
+        {/* Desktop Table Container (md and up) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             
-            {/* Table Header with Clickable Column Sorters */}
+            {/* Table Header with 7 Clean Columns */}
             <thead className="bg-slate-900 text-white uppercase text-[0.62rem] font-black tracking-wider border-b border-slate-800 sticky top-0 z-10">
               <tr>
-                {/* Select All Checkbox */}
-                <th className="py-2.5 px-3 w-8 text-center">
+                {/* 1. Select All Checkbox */}
+                <th className="py-2.5 px-2.5 w-8 text-center">
                   <button 
                     onClick={toggleSelectAll} 
                     className="p-1 hover:text-amber-400 text-slate-400 transition cursor-pointer flex items-center justify-center mx-auto"
                     title={isAllSelected ? 'Deselect all' : 'Select all'}
                   >
                     {isAllSelected ? (
-                      <CheckSquare size={14} className="text-amber-400" />
+                      <CheckSquare size={13} className="text-amber-400" />
                     ) : selectedItemIds.length > 0 ? (
                       <div className="w-3.5 h-3.5 bg-amber-500 rounded-xs flex items-center justify-center text-slate-950 text-[10px] font-black">
                         -
                       </div>
                     ) : (
-                      <Square size={14} />
+                      <Square size={13} />
                     )}
                   </button>
                 </th>
 
-                {/* Column: Equipment Gear */}
+                {/* 2. Equipment Gear & Discipline */}
                 <th 
                   onClick={() => handleSort('name')}
-                  className="py-2.5 px-3 cursor-pointer hover:text-amber-400 transition select-none"
+                  className="py-2.5 px-2.5 cursor-pointer hover:text-amber-400 transition select-none"
                 >
                   <div className="flex items-center gap-1.5">
-                    <span>Equipment Gear & Notes</span>
+                    <span>Equipment Gear</span>
                     {sortField === 'name' ? (
                       sortDirection === 'asc' ? <ArrowUp size={11} className="text-amber-400" /> : <ArrowDown size={11} className="text-amber-400" />
                     ) : (
@@ -789,43 +1243,13 @@ export default function EquipmentStockTab() {
                   </div>
                 </th>
 
-                {/* Column: Discipline */}
-                <th 
-                  onClick={() => handleSort('category')}
-                  className="py-2.5 px-3 cursor-pointer hover:text-amber-400 transition select-none"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>Discipline</span>
-                    {sortField === 'category' ? (
-                      sortDirection === 'asc' ? <ArrowUp size={11} className="text-amber-400" /> : <ArrowDown size={11} className="text-amber-400" />
-                    ) : (
-                      <ArrowUpDown size={10} className="text-slate-500 opacity-60" />
-                    )}
-                  </div>
-                </th>
-
-                {/* Column: Location */}
-                <th 
-                  onClick={() => handleSort('location')}
-                  className="py-2.5 px-3 cursor-pointer hover:text-amber-400 transition select-none"
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span>Storage Location</span>
-                    {sortField === 'location' ? (
-                      sortDirection === 'asc' ? <ArrowUp size={11} className="text-amber-400" /> : <ArrowDown size={11} className="text-amber-400" />
-                    ) : (
-                      <ArrowUpDown size={10} className="text-slate-500 opacity-60" />
-                    )}
-                  </div>
-                </th>
-
-                {/* Column: Total Units (Stepper) */}
+                {/* 3. Total Stock */}
                 <th 
                   onClick={() => handleSort('totalQty')}
-                  className="py-2.5 px-3 text-center cursor-pointer hover:text-amber-400 transition select-none"
+                  className="py-2.5 px-2.5 w-28 text-center cursor-pointer hover:text-amber-400 transition select-none"
                 >
                   <div className="flex items-center justify-center gap-1.5">
-                    <span>Total Stock</span>
+                    <span>Total Units</span>
                     {sortField === 'totalQty' ? (
                       sortDirection === 'asc' ? <ArrowUp size={11} className="text-amber-400" /> : <ArrowDown size={11} className="text-amber-400" />
                     ) : (
@@ -834,28 +1258,13 @@ export default function EquipmentStockTab() {
                   </div>
                 </th>
 
-                {/* Column: On Loan */}
-                <th 
-                  onClick={() => handleSort('loaned')}
-                  className="py-2.5 px-3 text-center cursor-pointer hover:text-amber-400 transition select-none"
-                >
-                  <div className="flex items-center justify-center gap-1.5">
-                    <span>Loaned</span>
-                    {sortField === 'loaned' ? (
-                      sortDirection === 'asc' ? <ArrowUp size={11} className="text-amber-400" /> : <ArrowDown size={11} className="text-amber-400" />
-                    ) : (
-                      <ArrowUpDown size={10} className="text-slate-500 opacity-60" />
-                    )}
-                  </div>
-                </th>
-
-                {/* Column: Available in Store */}
+                {/* 4. In Store Ready */}
                 <th 
                   onClick={() => handleSort('available')}
-                  className="py-2.5 px-3 text-center cursor-pointer hover:text-amber-400 transition select-none"
+                  className="py-2.5 px-2.5 w-28 text-center cursor-pointer hover:text-amber-400 transition select-none"
                 >
                   <div className="flex items-center justify-center gap-1.5">
-                    <span>Available In Store</span>
+                    <span>In Store</span>
                     {sortField === 'available' ? (
                       sortDirection === 'asc' ? <ArrowUp size={11} className="text-amber-400" /> : <ArrowDown size={11} className="text-amber-400" />
                     ) : (
@@ -864,340 +1273,97 @@ export default function EquipmentStockTab() {
                   </div>
                 </th>
 
-                {/* Column: Health / Condition */}
-                <th className="py-2.5 px-3">Condition & Health</th>
+                {/* 5. On Loan */}
+                <th 
+                  onClick={() => handleSort('loaned')}
+                  className="py-2.5 px-2.5 w-24 text-center cursor-pointer hover:text-amber-400 transition select-none"
+                >
+                  <div className="flex items-center justify-center gap-1.5">
+                    <span>On Loan</span>
+                    {sortField === 'loaned' ? (
+                      sortDirection === 'asc' ? <ArrowUp size={11} className="text-amber-400" /> : <ArrowDown size={11} className="text-amber-400" />
+                    ) : (
+                      <ArrowUpDown size={10} className="text-slate-500 opacity-60" />
+                    )}
+                  </div>
+                </th>
 
-                {/* Column: Actions */}
-                <th className="py-2.5 px-3.5 text-right">Actions & Desk</th>
+                {/* 6. Condition */}
+                <th className="py-2.5 px-2.5 w-28">Condition</th>
+
+                {/* 7. Actions */}
+                <th className="py-2.5 px-2.5 w-28 text-right">Actions</th>
               </tr>
             </thead>
 
             {/* Table Body */}
             <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
               {filteredEquipment.length > 0 ? (
-                filteredEquipment.map((item) => {
-                  const categoryObj = allCategoryObjects.find(c => c.id === item.category) || { icon: '🏆', name: item.category || 'General' };
-                  
-                  // Active loans for this specific equipment item
-                  const itemLoans = activeIssuedLogs.filter(l => l.equipmentId === item.id);
-                  const issuedForThis = itemLoans.reduce((a, b) => a + (Number(b.qty) || 0), 0);
-                  
-                  const availForThis = Math.max(0, (Number(item.totalQty) || 0) - issuedForThis);
-                  const isLow = availForThis > 0 && availForThis <= 2;
-                  const isOut = availForThis === 0;
-                  const availPercent = item.totalQty > 0 ? Math.round((availForThis / item.totalQty) * 100) : 0;
+                viewLayout === 'grouped' ? (
+                  sortedSportGroups.map(([sportName, items]) => {
+                    const sportCategoryObj = allCategoryObjects.find(c => c.id === sportName) || { icon: '🏆', name: sportName };
+                    const groupTotalUnits = items.reduce((sum, it) => sum + (Number(it.totalQty) || 0), 0);
+                    const groupLoanedUnits = items.reduce((sum, it) => {
+                      const loans = activeIssuedLogs.filter(l => l.equipmentId === it.id);
+                      return sum + loans.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+                    }, 0);
+                    const groupAvailableUnits = Math.max(0, groupTotalUnits - groupLoanedUnits);
 
-                  const isSelected = selectedItemIds.includes(item.id);
-                  const isExpanded = expandedRowIds.includes(item.id);
-
-                  return (
-                    <React.Fragment key={item.id}>
-                      <tr 
-                        className={`transition-colors ${
-                          isSelected 
-                            ? 'bg-amber-50/70 border-l-2 border-l-amber-500' 
-                            : 'hover:bg-slate-50/80'
-                        }`}
-                      >
-                        
-                        {/* Checkbox */}
-                        <td className="py-2.5 px-3 text-center">
-                          <button
-                            onClick={() => toggleSelectItem(item.id)}
-                            className="p-1 text-slate-400 hover:text-amber-500 transition cursor-pointer flex items-center justify-center mx-auto"
-                          >
-                            {isSelected ? (
-                              <CheckSquare size={14} className="text-amber-600" />
-                            ) : (
-                              <Square size={14} className="hover:text-slate-600" />
-                            )}
-                          </button>
-                        </td>
-
-                        {/* Equipment Item Name & Emoji */}
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-2.5">
-                            <button
-                              onClick={() => toggleRowExpand(item.id)}
-                              className="text-slate-400 hover:text-slate-700 transition cursor-pointer shrink-0"
-                              title={isExpanded ? 'Collapse item details' : 'Expand item details'}
-                            >
-                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                            </button>
-
-                            <span className="text-base shrink-0 p-1 bg-slate-100 rounded-lg border border-slate-200">
-                              {categoryObj.icon}
-                            </span>
-
-                            <div className="min-w-0">
-                              <span className="font-black text-slate-900 text-xs block truncate hover:text-amber-600 transition">
-                                {item.name}
-                              </span>
-                              {item.notes && (
-                                <span className="text-[0.62rem] text-slate-400 font-normal block truncate max-w-[200px]">
-                                  {item.notes}
+                    return (
+                      <React.Fragment key={`group-${sportName}`}>
+                        {/* Refined Lightweight Sport Discipline Separator */}
+                        <tr className="bg-slate-100/90 border-y border-slate-200 text-slate-900">
+                          <td colSpan={7} className="py-1.5 px-3">
+                            <div className="flex items-center justify-between flex-wrap gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-base">{sportCategoryObj.icon}</span>
+                                <span className="font-black text-xs text-slate-900 tracking-tight">
+                                  {sportCategoryObj.name}
                                 </span>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Discipline Pill */}
-                        <td className="py-2.5 px-3">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-bold text-[0.65rem] border border-slate-200/90 whitespace-nowrap">
-                            {item.category || 'General'}
-                          </span>
-                        </td>
-
-                        {/* Storage Location */}
-                        <td className="py-2.5 px-3">
-                          <div className="flex items-center gap-1 text-[0.68rem] text-slate-600 font-medium">
-                            <MapPin size={11} className="text-slate-400 shrink-0" />
-                            <span className="truncate max-w-[130px]">
-                              {item.location || 'Main Sports Store'}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Total Quantity (Inline Quick Stepper & Direct Click-to-Edit) */}
-                        <td className="py-2.5 px-3 text-center">
-                          {inlineEditingId === item.id ? (
-                            <div className="inline-flex items-center gap-1">
-                              <input
-                                type="number"
-                                min="1"
-                                autoFocus
-                                value={inlineQtyValue}
-                                onChange={(e) => setInlineQtyValue(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleSaveInlineQty(item);
-                                  if (e.key === 'Escape') setInlineEditingId(null);
-                                }}
-                                onBlur={() => handleSaveInlineQty(item)}
-                                className="w-14 px-1.5 py-0.5 text-center text-xs font-black bg-white border-2 border-amber-500 rounded text-slate-900 focus:outline-none"
-                              />
-                            </div>
-                          ) : (
-                            <div className="inline-flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 font-mono shadow-2xs">
-                              <button
-                                onClick={() => handleQuickQtyChange(item, -1)}
-                                className="p-1 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded transition cursor-pointer"
-                                title="Decrease total stock (-1)"
-                              >
-                                <Minus size={11} />
-                              </button>
-
-                              <span 
-                                onClick={() => {
-                                  setInlineEditingId(item.id);
-                                  setInlineQtyValue(String(item.totalQty || 1));
-                                }}
-                                className="w-8 text-center text-xs font-black text-slate-900 hover:bg-amber-100 rounded cursor-text transition"
-                                title="Click to edit quantity number directly"
-                              >
-                                {item.totalQty}
-                              </span>
-
-                              <button
-                                onClick={() => handleQuickQtyChange(item, 1)}
-                                className="p-1 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded transition cursor-pointer"
-                                title="Increase total stock (+1)"
-                              >
-                                <Plus size={11} />
-                              </button>
-                            </div>
-                          )}
-                        </td>
-
-                        {/* On Loan Count */}
-                        <td className="py-2.5 px-3 text-center">
-                          {issuedForThis > 0 ? (
-                            <button
-                              onClick={() => toggleRowExpand(item.id)}
-                              className="px-2 py-0.5 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 font-mono font-bold text-xs inline-flex items-center gap-1 transition cursor-pointer"
-                              title="Click to view student borrowers"
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                              {issuedForThis} loaned
-                            </button>
-                          ) : (
-                            <span className="text-slate-300 text-xs font-mono">-</span>
-                          )}
-                        </td>
-
-                        {/* Available Stock & Visual Health Meter */}
-                        <td className="py-2.5 px-3 text-center">
-                          <div className="inline-flex flex-col items-center gap-1">
-                            <span className={`px-2 py-0.5 rounded-md font-mono font-black text-xs ${
-                              isOut
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : isLow
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            }`}>
-                              {availForThis} in store
-                            </span>
-
-                            {/* Mini Progress Ratio Bar */}
-                            <div className="w-20 h-1 bg-slate-100 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  isOut ? 'bg-rose-500' : isLow ? 'bg-amber-500' : 'bg-emerald-500'
-                                }`}
-                                style={{ width: `${availPercent}%` }}
-                              />
-                            </div>
-                          </div>
-                        </td>
-
-                        {/* Condition & Status Badge */}
-                        <td className="py-2.5 px-3">
-                          <div className="flex flex-col gap-0.5">
-                            <span className="text-xs font-bold text-slate-700 truncate max-w-[130px]">
-                              {item.condition || 'Good Condition'}
-                            </span>
-                            <span className="text-[0.6rem] font-semibold text-slate-400">
-                              {isOut ? '⛔ Depleted' : isLow ? '⚠️ Low Reserve' : '✓ Full Stock'}
-                            </span>
-                          </div>
-                        </td>
-
-                        {/* Actions & Instant Issue Button */}
-                        <td className="py-2.5 px-3.5 text-right space-x-1 shrink-0 whitespace-nowrap">
-                          {/* 1-Click Quick Issue Button */}
-                          <button
-                            onClick={() => openQuickIssue(item)}
-                            disabled={availForThis <= 0}
-                            className={`px-2 py-1 rounded-lg text-xs font-bold inline-flex items-center gap-1 transition ${
-                              availForThis > 0
-                                ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-2xs cursor-pointer active:scale-95'
-                                : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
-                            }`}
-                            title={availForThis > 0 ? `Instant issue ${item.name} to student` : 'Out of stock'}
-                          >
-                            <Zap size={11} className={availForThis > 0 ? 'text-slate-950 fill-slate-950' : ''} />
-                            <span>Issue</span>
-                          </button>
-
-                          {/* Edit Item */}
-                          <button
-                            onClick={() => openEditModal(item)}
-                            className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition cursor-pointer"
-                            title="Edit Gear Details"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-
-                          {/* Delete Item */}
-                          <button
-                            onClick={() => {
-                              if (confirm(`Remove "${item.name}" from inventory?`)) {
-                                deleteEquipment(item.id);
-                              }
-                            }}
-                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            title="Delete Gear Item"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </td>
-                      </tr>
-
-                      {/* EXPANDABLE ROW DETAILS (Active loans list & Storage specs) */}
-                      {isExpanded && (
-                        <tr className="bg-slate-50/95 border-b border-slate-200 text-xs">
-                          <td colSpan={9} className="py-3 px-4 sm:px-6">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
-                              
-                              {/* Left Column: Storage Specs */}
-                              <div className="space-y-1.5">
-                                <span className="text-[0.62rem] font-black uppercase tracking-wider text-slate-400 block">
-                                  Storage Location & Specs
+                                <span className="px-1.5 py-0.2 rounded-full text-[0.6rem] font-bold bg-slate-200/80 text-slate-700">
+                                  {items.length} {items.length === 1 ? 'item' : 'items'}
                                 </span>
-                                <div className="flex items-center gap-2 text-slate-700 font-semibold text-xs">
-                                  <MapPin size={14} className="text-amber-500 shrink-0" />
-                                  <span>{item.location || 'Main Sports Store, Section A'}</span>
-                                </div>
-                                <div className="text-[0.68rem] text-slate-500">
-                                  Condition: <span className="font-bold text-slate-700">{item.condition || 'Good Condition'}</span>
-                                </div>
-                                {item.notes && (
-                                  <div className="text-[0.68rem] text-slate-500">
-                                    Notes: <span className="font-medium text-slate-700">{item.notes}</span>
-                                  </div>
-                                )}
                               </div>
 
-                              {/* Middle & Right Column: Active Student Loans */}
-                              <div className="md:col-span-2 space-y-1.5 border-t md:border-t-0 md:border-l border-slate-200 md:pl-4 pt-2 md:pt-0">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-[0.62rem] font-black uppercase tracking-wider text-slate-400 block">
-                                    Active Student Loans ({itemLoans.length})
+                              <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-1 text-[0.62rem] font-bold">
+                                  <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    🟢 {groupAvailableUnits} in store
                                   </span>
-                                  {availForThis > 0 && (
-                                    <button
-                                      onClick={() => openQuickIssue(item)}
-                                      className="text-[0.65rem] font-bold text-amber-600 hover:text-amber-700 hover:underline flex items-center gap-1 cursor-pointer"
-                                    >
-                                      <Plus size={11} /> Issue another unit
-                                    </button>
+                                  {groupLoanedUnits > 0 && (
+                                    <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                                      ⚡ {groupLoanedUnits} loaned
+                                    </span>
                                   )}
+                                  <span className="px-1.5 py-0.5 rounded bg-white text-slate-600 border border-slate-200 font-mono">
+                                    {groupTotalUnits} total
+                                  </span>
                                 </div>
 
-                                {itemLoans.length > 0 ? (
-                                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
-                                    {itemLoans.map(log => (
-                                      <div key={log.id} className="flex items-center justify-between p-2 rounded-lg bg-amber-50/50 border border-amber-200/80 text-xs">
-                                        <div className="flex items-center gap-2">
-                                          <User size={13} className="text-amber-600 shrink-0" />
-                                          <div>
-                                            <span className="font-bold text-slate-900">{log.borrowerName}</span>
-                                            <span className="text-slate-500 text-[0.65rem] ml-1.5 font-mono">
-                                              ({log.rollNo} • {log.branch})
-                                            </span>
-                                          </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-mono font-bold text-amber-700 text-xs">
-                                            {log.qty} unit{log.qty > 1 ? 's' : ''}
-                                          </span>
-                                          <span className="text-[0.62rem] text-slate-400">
-                                            {log.issueDate}
-                                          </span>
-                                          <button
-                                            onClick={() => {
-                                              if (confirm(`Accept return of ${log.qty}x "${item.name}" from ${log.borrowerName}?`)) {
-                                                returnEquipment(log.id, 'Good Condition', 'Returned via stock desk', log.qty);
-                                              }
-                                            }}
-                                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[0.65rem] font-bold cursor-pointer"
-                                          >
-                                            Return
-                                          </button>
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-[0.68rem] text-slate-400 italic pt-1">
-                                    No active loans for this item. All {item.totalQty} units are currently present in store.
-                                  </p>
-                                )}
+                                <button
+                                  onClick={() => openAddModal(sportName)}
+                                  className="px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded text-[0.62rem] font-black transition flex items-center gap-0.5 cursor-pointer ml-1"
+                                  title={`Add new gear to ${sportCategoryObj.name}`}
+                                >
+                                  <Plus size={10} />
+                                  <span>Add</span>
+                                </button>
                               </div>
-
                             </div>
                           </td>
                         </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })
+                        {items.map(item => renderDesktopRow(item))}
+                      </React.Fragment>
+                    );
+                  })
+                ) : (
+                  filteredEquipment.map(item => renderDesktopRow(item))
+                )
               ) : (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={7} className="py-12 text-center text-slate-400">
                     <div className="max-w-xs mx-auto space-y-2">
-                      <Package size={30} className="mx-auto text-slate-300" />
+                      <Package size={28} className="mx-auto text-slate-300" />
                       <p className="text-xs font-bold text-slate-700">No equipment items found</p>
                       <p className="text-[0.68rem] text-slate-400">
                         {hasActiveFilters 
@@ -1225,6 +1391,72 @@ export default function EquipmentStockTab() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* MOBILE CARDS VIEW (< md screens) */}
+        <div className="block md:hidden p-2 space-y-2 bg-slate-50/50">
+          {filteredEquipment.length > 0 ? (
+            viewLayout === 'grouped' ? (
+              sortedSportGroups.map(([sportName, items]) => {
+                const sportCategoryObj = allCategoryObjects.find(c => c.id === sportName) || { icon: '🏆', name: sportName };
+                const groupTotalUnits = items.reduce((sum, it) => sum + (Number(it.totalQty) || 0), 0);
+                const groupLoanedUnits = items.reduce((sum, it) => {
+                  const loans = activeIssuedLogs.filter(l => l.equipmentId === it.id);
+                  return sum + loans.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+                }, 0);
+                const groupAvailableUnits = Math.max(0, groupTotalUnits - groupLoanedUnits);
+
+                return (
+                  <div key={`m-group-${sportName}`} className="space-y-1.5">
+                    {/* Clean Lightweight Sticky Sport Header */}
+                    <div className="bg-slate-100 border border-slate-200 p-2 rounded-xl flex items-center justify-between sticky top-2 z-10 shadow-2xs">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">{sportCategoryObj.icon}</span>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="font-black text-xs text-slate-900">
+                              {sportCategoryObj.name}
+                            </h4>
+                            <span className="px-1.5 py-0.2 rounded-full text-[0.58rem] font-bold bg-slate-200 text-slate-700">
+                              {items.length}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 text-[0.6rem] text-slate-500 font-medium">
+                            <span className="text-emerald-700 font-bold">{groupAvailableUnits} in store</span>
+                            {groupLoanedUnits > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="text-amber-700 font-bold">{groupLoanedUnits} loaned</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => openAddModal(sportName)}
+                        className="px-2 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-lg text-xs font-black flex items-center gap-0.5 cursor-pointer"
+                      >
+                        <Plus size={11} /> Add
+                      </button>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      {items.map(item => renderMobileCard(item))}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              filteredEquipment.map(item => renderMobileCard(item))
+            )
+          ) : (
+            <div className="py-10 text-center text-slate-400">
+              <Package size={28} className="mx-auto text-slate-300 mb-1.5" />
+              <p className="text-xs font-bold text-slate-700">No equipment items found</p>
+              <p className="text-[0.68rem] text-slate-400">Try adjusting your active filter or search</p>
+            </div>
+          )}
         </div>
 
         {/* Table Footer Summary Bar */}

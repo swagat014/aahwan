@@ -12,18 +12,21 @@ export default function AdminLoginModal() {
 
   if (!showAdminLogin) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      const res = loginAdmin(username, password);
+    try {
+      const res = await loginAdmin(username, password);
       setLoading(false);
       if (!res.success) {
         setError(res.message);
       }
-    }, 600);
+    } catch (err) {
+      setLoading(false);
+      setError('Invalid Admin credentials. Access denied.');
+    }
   };
 
   return (
@@ -77,16 +80,23 @@ export default function AdminLoginModal() {
             </motion.div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             <div>
-              <label className="block text-xs font-black uppercase text-slate-700 tracking-wider mb-2">
+              <label 
+                htmlFor="modal_admin_user"
+                className="block text-xs font-black uppercase text-slate-700 tracking-wider mb-2"
+              >
                 Admin Username / ID
               </label>
               <div className="relative">
                 <input
+                  id="modal_admin_user"
+                  name="modal_admin_user"
                   type="text"
                   required
-                  placeholder="adminAWAHAAN"
+                  autoComplete="off"
+                  spellCheck="false"
+                  placeholder="Enter admin ID"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 text-sm font-bold focus:outline-none focus:border-blue-600 focus:bg-white transition-all placeholder:text-slate-400"
@@ -95,14 +105,21 @@ export default function AdminLoginModal() {
             </div>
 
             <div>
-              <label className="block text-xs font-black uppercase text-slate-700 tracking-wider mb-2">
+              <label 
+                htmlFor="modal_admin_pass"
+                className="block text-xs font-black uppercase text-slate-700 tracking-wider mb-2"
+              >
                 Admin Password
               </label>
               <div className="relative">
                 <input
+                  id="modal_admin_pass"
+                  name="modal_admin_pass"
                   type="password"
                   required
-                  placeholder="••••••••••••••••"
+                  autoComplete="new-password"
+                  spellCheck="false"
+                  placeholder="Enter admin password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-900 text-sm font-bold focus:outline-none focus:border-blue-600 focus:bg-white transition-all placeholder:text-slate-400"

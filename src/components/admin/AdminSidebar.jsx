@@ -321,8 +321,8 @@ export default function AdminSidebar({
 
             {!collapsed && (
               <div className="min-w-0 leading-tight">
-                <p className="font-black text-xs text-white truncate">adminaahwan</p>
-                <p className="text-[0.58rem] font-bold text-slate-400 truncate">Council Admin</p>
+                <p className="font-black text-xs text-white truncate">Sports Council Admin</p>
+                <p className="text-[0.58rem] font-bold text-slate-400 truncate">Authenticated Admin</p>
               </div>
             )}
           </div>

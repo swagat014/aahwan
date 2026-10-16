@@ -26,28 +26,22 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [quickFilled, setQuickFilled] = useState(false);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      const res = loginAdmin(username, password);
+    try {
+      const res = await loginAdmin(username, password);
       setLoading(false);
       if (!res.success) {
         setError(res.message);
       }
-    }, 450);
-  };
-
-  const handleQuickFill = () => {
-    setUsername('adminaahwan');
-    setPassword('gcekaahwanadmin2009');
-    setError('');
-    setQuickFilled(true);
-    setTimeout(() => setQuickFilled(false), 2000);
+    } catch (err) {
+      setLoading(false);
+      setError('Invalid Admin credentials. Access denied.');
+    }
   };
 
   return (
@@ -128,27 +122,6 @@ export default function AdminLoginPage() {
           </div>
         </div>
 
-        {/* Quick Demo Helper Button */}
-        <div className="mb-4">
-          <button
-            type="button"
-            onClick={handleQuickFill}
-            className={`w-full py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-between group cursor-pointer ${
-              quickFilled
-                ? 'bg-emerald-950/50 border-emerald-500/40 text-emerald-300'
-                : 'bg-slate-950/50 hover:bg-slate-800/60 border-slate-800/80 hover:border-slate-700 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <span className="flex items-center gap-1.5 text-[0.72rem]">
-              <Sparkles size={13} className={quickFilled ? 'text-emerald-400' : 'text-amber-400'} />
-              <span>{quickFilled ? 'Demo Credentials Loaded!' : 'Quick Fill Demo Credentials'}</span>
-            </span>
-            <span className="text-[0.62rem] px-1.5 py-0.2 rounded bg-slate-800/80 font-mono text-slate-300">
-              adminaahwan
-            </span>
-          </button>
-        </div>
-
         {/* Error Alert Display */}
         <AnimatePresence>
           {error && (
@@ -167,17 +140,24 @@ export default function AdminLoginPage() {
         </AnimatePresence>
 
         {/* Login Form */}
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3" autoComplete="off">
           <div>
-            <label className="block text-[0.65rem] font-black uppercase text-slate-400 tracking-wider mb-1">
+            <label 
+              htmlFor="admin_login_id" 
+              className="block text-[0.65rem] font-black uppercase text-slate-400 tracking-wider mb-1"
+            >
               Admin ID / Username
             </label>
             <div className="relative">
               <User size={14} className="absolute left-3 top-3 text-slate-500" />
               <input
+                id="admin_login_id"
+                name="admin_login_id"
                 type="text"
                 required
-                placeholder="e.g. adminaahwan"
+                autoComplete="off"
+                spellCheck="false"
+                placeholder="Enter admin ID"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-slate-800 rounded-xl text-white font-semibold text-xs focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all placeholder:text-slate-600"
@@ -186,14 +166,21 @@ export default function AdminLoginPage() {
           </div>
 
           <div>
-            <label className="block text-[0.65rem] font-black uppercase text-slate-400 tracking-wider mb-1">
+            <label 
+              htmlFor="admin_login_pwd" 
+              className="block text-[0.65rem] font-black uppercase text-slate-400 tracking-wider mb-1"
+            >
               Password
             </label>
             <div className="relative">
               <Lock size={14} className="absolute left-3 top-3 text-slate-500" />
               <input
+                id="admin_login_pwd"
+                name="admin_login_pwd"
                 type={showPassword ? 'text' : 'password'}
                 required
+                autoComplete="new-password"
+                spellCheck="false"
                 placeholder="Enter admin password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}

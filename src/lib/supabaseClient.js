@@ -60,3 +60,47 @@ export async function uploadImageToSupabase(file, folder = 'dignitaries') {
   // Instant & persistent Base64 Data URL fallback (Zero HTTP 400 errors!)
   return await readFileAsDataURL(file);
 }
+
+/**
+ * Automatic Keep-Alive Ping & Inactivity Reset
+ * Pings Supabase REST endpoint to keep the free tier database active
+ * and prevent Supabase from auto-pausing after 7 days.
+ */
+export async function pingSupabaseKeepAlive() {
+  if (!SUPABASE_URL) return;
+
+  try {
+    const lastPing = localStorage.getItem('aahwan_supabase_last_ping');
+    const now = Date.now();
+    // Throttle: Send ping at most once every 6 hours
+    if (lastPing && now - Number(lastPing) < 6 * 60 * 60 * 1000) {
+      return;
+    }
+
+    const headers = {};
+    if (SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('placeholder')) {
+      headers['apikey'] = SUPABASE_ANON_KEY;
+    }
+
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout ? AbortSignal.timeout(4000) : undefined
+    });
+
+    if (res.status === 503) {
+      console.warn('⚠️ Supabase project is currently paused. Please unpause it in your Supabase dashboard.');
+      localStorage.setItem('aahwan_supabase_paused', 'true');
+    } else {
+      localStorage.setItem('aahwan_supabase_last_ping', String(now));
+      localStorage.removeItem('aahwan_supabase_paused');
+    }
+  } catch (err) {
+    // Gracefully ignore network hiccups without breaking UI
+  }
+}
+
+// Trigger initial keep-alive ping on script evaluation
+if (typeof window !== 'undefined') {
+  pingSupabaseKeepAlive();
+}
