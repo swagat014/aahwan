@@ -33,28 +33,29 @@ export default function PrintableRosterModal({ sportTitle, onClose }) {
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-10 shadow-2xl relative z-10 border border-slate-200 print:shadow-none print:border-none print:max-w-none print:w-full print:p-0"
+          className="bg-white rounded-2xl sm:rounded-3xl max-w-4xl w-full max-h-[92vh] overflow-y-auto p-4 sm:p-8 shadow-2xl relative z-10 border border-slate-200 print:shadow-none print:border-none print:max-w-none print:w-full print:p-0 print:max-h-none"
         >
           {/* Action Bar (Hidden during printing) */}
-          <div className="flex items-center justify-between pb-6 mb-6 border-b border-slate-200 print:hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 mb-4 border-b border-slate-200 print:hidden">
             <div>
-              <h4 className="text-xl font-black text-slate-900">Official Officiating Roster Generator</h4>
-              <p className="text-xs font-semibold text-slate-500">Formated for GCEK Referee Desk & Sports Society printing.</p>
+              <h4 className="text-base sm:text-xl font-black text-slate-900">Official Officiating Roster Generator</h4>
+              <p className="text-[0.68rem] sm:text-xs font-semibold text-slate-500">Formatted for GCEK Referee Desk & Sports Society printing.</p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 self-end sm:self-center">
               <button
                 onClick={handlePrint}
-                className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-full shadow-lg shadow-blue-500/25 flex items-center gap-2"
+                className="px-4 sm:px-6 py-2 sm:py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl sm:rounded-full shadow-lg shadow-blue-500/25 flex items-center gap-2 cursor-pointer"
               >
-                <Printer size={16} /> Print Official Sheet
+                <Printer size={15} />
+                <span>Print Official Sheet</span>
               </button>
 
               <button
                 onClick={onClose}
-                className="w-10 h-10 rounded-full bg-slate-100 text-slate-700 hover:bg-rose-100 hover:text-rose-600 flex items-center justify-center transition-colors"
+                className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-full bg-slate-100 text-slate-700 hover:bg-rose-100 hover:text-rose-600 flex items-center justify-center transition-colors cursor-pointer"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
           </div>

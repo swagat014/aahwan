@@ -488,8 +488,8 @@ export default function EquipmentInventoryTab() {
 
       {/* MODAL 1: ADD / EDIT EQUIPMENT STOCK */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-200">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full max-h-[92vh] overflow-y-auto shadow-2xl space-y-4 border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
                 <Package className="text-blue-600" size={20} />
@@ -589,8 +589,8 @@ export default function EquipmentInventoryTab() {
 
       {/* MODAL 2: ISSUE EQUIPMENT TO STUDENT */}
       {showIssueModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-200">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full max-h-[92vh] overflow-y-auto shadow-2xl space-y-4 border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
                 <ArrowUpRight className="text-blue-600" size={20} />
@@ -700,8 +700,8 @@ export default function EquipmentInventoryTab() {
 
       {/* MODAL 3: MARK AS RETURNED MODAL */}
       {returnLog && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 border border-slate-200 text-xs font-semibold">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-sm w-full max-h-[92vh] overflow-y-auto shadow-2xl space-y-4 border border-slate-200 text-xs font-semibold">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
                 <RotateCcw className="text-emerald-600" size={20} />

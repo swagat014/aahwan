@@ -140,87 +140,88 @@ export default function EquipmentIssueReturnTab() {
             }
             setShowIssueModal(true);
           }}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-2xl flex items-center gap-2 shadow-lg shadow-blue-600/25 transition"
+          className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition cursor-pointer"
         >
-          <ArrowUpRight size={18} /> Issue Equipment To Student
+          <ArrowUpRight size={15} /> 
+          <span>Issue Equipment</span>
         </button>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
-        <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 text-[0.68rem] font-black uppercase tracking-wider mb-1">
-            <span>Total Issue Records</span>
-            <RotateCcw size={18} className="text-blue-600" />
+      {/* COMPACT KPI METRIC CARDS */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+        <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500 text-[0.62rem] font-bold uppercase tracking-wider mb-0.5">
+            <span>Total Loan History</span>
+            <RotateCcw size={14} className="text-blue-500" />
           </div>
-          <h3 className="text-2xl font-black text-slate-900">{equipmentLogs.length}</h3>
-          <p className="text-[0.62rem] font-bold text-slate-400 mt-0.5">Historical Borrower Logs</p>
+          <div className="text-xl font-black text-slate-900">{equipmentLogs.length}</div>
+          <p className="text-[0.6rem] font-semibold text-slate-400 mt-0.5">Historical Student Records</p>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 text-[0.68rem] font-black uppercase tracking-wider mb-1">
-            <span>Currently Issued Out</span>
-            <Clock size={18} className="text-amber-500" />
+        <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500 text-[0.62rem] font-bold uppercase tracking-wider mb-0.5">
+            <span>Currently On Loan</span>
+            <Clock size={14} className="text-amber-500" />
           </div>
-          <h3 className="text-2xl font-black text-amber-600">{activeIssuedLogs.length}</h3>
-          <p className="text-[0.62rem] font-bold text-amber-600 mt-0.5">Active Borrowers</p>
+          <div className="text-xl font-black text-amber-600">{activeIssuedLogs.length}</div>
+          <p className="text-[0.6rem] font-bold text-amber-600 mt-0.5">Active Student Holders</p>
         </div>
 
-        <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 shadow-sm">
-          <div className="flex items-center justify-between text-slate-500 text-[0.68rem] font-black uppercase tracking-wider mb-1">
+        <div className="bg-slate-50/90 border border-slate-200 rounded-xl p-3 shadow-2xs">
+          <div className="flex items-center justify-between text-slate-500 text-[0.62rem] font-bold uppercase tracking-wider mb-0.5">
             <span>Returned Records</span>
-            <CheckCircle2 size={18} className="text-emerald-600" />
+            <CheckCircle2 size={14} className="text-emerald-500" />
           </div>
-          <h3 className="text-2xl font-black text-emerald-600">{returnedLogs.length}</h3>
-          <p className="text-[0.62rem] font-bold text-emerald-600 mt-0.5">Restored to Store</p>
+          <div className="text-xl font-black text-emerald-600">{returnedLogs.length}</div>
+          <p className="text-[0.6rem] font-bold text-emerald-600 mt-0.5">Checked Back to Store</p>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-        <div className="flex items-center gap-2.5 flex-1 max-w-md">
+      {/* FILTER BAR */}
+      <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-50/80 border border-slate-200/80 rounded-xl p-2.5">
+        <div className="flex items-center gap-2 flex-1 max-w-md">
           <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-3 text-slate-400" />
+            <Search size={13} className="absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Search student name, roll number, item..."
+              placeholder="Search student name, roll number, equipment..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white transition"
+              className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20 transition placeholder:text-slate-400"
             />
           </div>
 
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700"
+            className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:border-amber-500"
           >
             <option value="all">All Status</option>
-            <option value="issued">Currently Issued</option>
+            <option value="issued">Currently On Loan</option>
             <option value="returned">Returned</option>
           </select>
         </div>
       </div>
 
-      {/* Issue & Return Register Table */}
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+      {/* COMPACT ISSUE & RETURN REGISTER TABLE */}
+      <div className="bg-white border border-slate-200/90 rounded-xl overflow-hidden shadow-2xs">
         {filteredLogs.length === 0 ? (
-          <div className="p-12 text-center text-slate-400 text-xs font-semibold">
-            No equipment issue/return logs found.
+          <div className="p-8 text-center text-slate-400 text-xs font-semibold">
+            No equipment issue/return logs found matching current search.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900 text-slate-300 font-black uppercase text-[0.68rem] tracking-wider">
+              <thead className="bg-slate-900 text-white uppercase text-[0.62rem] font-black tracking-wider border-b border-slate-800">
                 <tr>
-                  <th className="p-3.5">Issue ID / Date</th>
-                  <th className="p-3.5">Equipment Item</th>
-                  <th className="p-3.5">Borrower Student</th>
-                  <th className="p-3.5">Department / Branch</th>
-                  <th className="p-3.5 text-center">Qty Issued</th>
-                  <th className="p-3.5 text-center">Returned Count</th>
-                  <th className="p-3.5">Status</th>
-                  <th className="p-3.5 text-right">Action</th>
+                  <th className="py-2.5 px-3.5">Log ID / Date</th>
+                  <th className="py-2.5 px-3">Equipment Item</th>
+                  <th className="py-2.5 px-3">Borrower Student</th>
+                  <th className="py-2.5 px-3">Branch</th>
+                  <th className="py-2.5 px-3 text-center">Qty Issued</th>
+                  <th className="py-2.5 px-3 text-center">Returned</th>
+                  <th className="py-2.5 px-3">Status</th>
+                  <th className="py-2.5 px-3.5 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
@@ -228,57 +229,57 @@ export default function EquipmentIssueReturnTab() {
                   const hasPartialReturn = Number(log.returnedCount || 0) > 0 && log.status === 'issued';
 
                   return (
-                    <tr key={log.id} className="hover:bg-slate-50/80 transition">
-                      <td className="p-3.5 font-mono text-slate-500">
-                        <span className="font-bold text-slate-900 block">{log.id}</span>
-                        <span className="text-[0.65rem] text-slate-400">{log.issueDate}</span>
+                    <tr key={log.id} className="hover:bg-amber-50/30 transition-colors">
+                      <td className="py-2 px-3.5 font-mono text-slate-500">
+                        <span className="font-bold text-slate-900 block text-xs">{log.id}</span>
+                        <span className="text-[0.62rem] text-slate-400">{log.issueDate}</span>
                       </td>
-                      <td className="p-3.5 font-black text-slate-900">
+                      <td className="py-2 px-3 font-black text-slate-900 text-xs">
                         {log.equipmentName}
                       </td>
-                      <td className="p-3.5">
-                        <span className="font-bold text-slate-900 block">{log.borrowerName}</span>
-                        <span className="font-mono text-slate-400 text-[0.65rem]">Roll: {log.rollNo}</span>
+                      <td className="py-2 px-3">
+                        <span className="font-bold text-slate-900 block text-xs">{log.borrowerName}</span>
+                        <span className="font-mono text-slate-400 text-[0.62rem]">Roll: {log.rollNo}</span>
                       </td>
-                      <td className="p-3.5">
-                        <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                      <td className="py-2 px-3">
+                        <span className="px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 font-bold text-[0.65rem] border border-blue-200">
                           {log.branch}
                         </span>
                       </td>
-                      <td className="p-3.5 text-center font-mono font-black text-slate-900 text-sm">
+                      <td className="py-2 px-3 text-center font-mono font-black text-slate-900 text-xs">
                         {log.qty} {log.status === 'issued' ? 'units out' : 'units'}
                       </td>
-                      <td className="p-3.5 text-center font-mono font-bold text-emerald-600 text-xs">
+                      <td className="py-2 px-3 text-center font-mono font-bold text-emerald-600 text-xs">
                         {log.returnedCount || (log.status === 'returned' ? log.qty : 0)} units
                       </td>
-                      <td className="p-3.5">
+                      <td className="py-2 px-3">
                         {log.status === 'issued' ? (
                           hasPartialReturn ? (
-                            <span className="px-2.5 py-1 rounded-md bg-cyan-50 text-cyan-700 font-bold border border-cyan-200 flex items-center gap-1 w-max">
-                              <Clock size={12} /> Partially Returned
+                            <span className="px-2 py-0.5 rounded-md bg-cyan-50 text-cyan-700 font-bold border border-cyan-200 text-[0.65rem] inline-flex items-center gap-1">
+                              <Clock size={11} /> Partial ({log.returnedCount} ret)
                             </span>
                           ) : (
-                            <span className="px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 font-bold border border-amber-200 flex items-center gap-1 w-max">
-                              <Clock size={12} /> Issued Out
+                            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 font-bold border border-amber-200 text-[0.65rem] inline-flex items-center gap-1">
+                              <Clock size={11} /> On Loan
                             </span>
                           )
                         ) : log.returnCondition && log.returnCondition.toLowerCase().includes('missing') ? (
-                          <span className="px-2.5 py-1 rounded-md bg-rose-50 text-rose-700 font-bold border border-rose-200 flex items-center gap-1 w-max">
-                            <AlertTriangle size={12} /> Missing / Lost
+                          <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-bold border border-rose-200 text-[0.65rem] inline-flex items-center gap-1">
+                            <AlertTriangle size={11} /> Missing / Lost
                           </span>
                         ) : (
-                          <span className="px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 flex items-center gap-1 w-max">
-                            <CheckCircle2 size={12} /> Returned ({log.returnCondition || 'Good'})
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200 text-[0.65rem] inline-flex items-center gap-1">
+                            <CheckCircle2 size={11} /> Returned
                           </span>
                         )}
                       </td>
-                      <td className="p-3.5 text-right">
+                      <td className="py-2 px-3.5 text-right">
                         {log.status === 'issued' && (
                           <button
                             onClick={() => openReturnModal(log)}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-sm transition flex items-center gap-1 ml-auto"
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[0.68rem] rounded-lg shadow-2xs transition inline-flex items-center gap-1 cursor-pointer"
                           >
-                            <RotateCcw size={13} /> Return Gear
+                            <RotateCcw size={11} /> Return
                           </button>
                         )}
                       </td>
@@ -293,8 +294,8 @@ export default function EquipmentIssueReturnTab() {
 
       {/* MODAL 1: ISSUE EQUIPMENT TO STUDENT (WITH SPORTS CATEGORY DROPDOWN) */}
       {showIssueModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-4 border border-slate-200">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full max-h-[92vh] overflow-y-auto shadow-2xl space-y-4 border border-slate-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
                 <ArrowUpRight className="text-blue-600" size={20} />
@@ -427,8 +428,8 @@ export default function EquipmentIssueReturnTab() {
 
       {/* MODAL 2: RETURN EQUIPMENT MODAL (SUPPORTS PARTIAL RETURNS) */}
       {returnLog && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 border border-slate-200 text-xs font-semibold">
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-sm w-full max-h-[92vh] overflow-y-auto shadow-2xl space-y-4 border border-slate-200 text-xs font-semibold">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <h3 className="font-black text-slate-900 text-base flex items-center gap-2">
                 <RotateCcw className="text-emerald-600" size={20} />

@@ -41,7 +41,7 @@ export default function Hero() {
   ];
 
   return (
-    <section id="home" className="relative min-h-[85vh] sm:min-h-[90vh] pt-24 sm:pt-28 pb-16 sm:pb-24 flex items-center justify-center text-center overflow-hidden select-none">
+    <section id="home" className="relative min-h-[85vh] sm:min-h-[90vh] pt-20 sm:pt-28 pb-12 sm:pb-24 flex items-center justify-center text-center overflow-hidden select-none">
       
       {/* Background Radial Ambient Glows */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] sm:w-[950px] h-[600px] sm:h-[950px] bg-blue-500/10 rounded-full blur-[140px] sm:blur-[160px] pointer-events-none" />
@@ -70,17 +70,17 @@ export default function Hero() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
-            className="inline-flex items-center gap-2.5 px-4 sm:px-5 py-2 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-full shadow-sm mb-6 sm:mb-8"
+            className="inline-flex items-center gap-2 sm:gap-2.5 px-3 sm:px-5 py-1.5 sm:py-2 bg-white/95 backdrop-blur-md border border-slate-200/90 rounded-full shadow-sm mb-5 sm:mb-8"
           >
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-amber-500 via-blue-600 to-indigo-700 text-white font-black text-xs flex items-center justify-center shadow-md shrink-0">
-              <Trophy size={14} />
+            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-amber-500 via-blue-600 to-indigo-700 text-white font-black text-xs flex items-center justify-center shadow-md shrink-0">
+              <Trophy size={13} />
             </div>
-            <span className="text-[0.65rem] sm:text-xs font-black text-slate-800 tracking-widest uppercase flex items-center gap-1.5 sm:gap-2">
+            <span className="text-[0.62rem] sm:text-xs font-black text-slate-800 tracking-widest uppercase flex items-center gap-1.5 sm:gap-2">
               <span>{collegeLocation}, ODISHA</span>
               <span className="text-amber-500 font-bold">•</span>
               <span>ESTD 2009</span>
             </span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-emerald-500 animate-ping" />
           </motion.div>
 
           {/* Dynamic Reactive Display Title */}
@@ -88,9 +88,9 @@ export default function Hero() {
             variants={sentenceVariants}
             initial="hidden"
             animate="visible"
-            className="mb-4 sm:mb-6 w-full"
+            className="mb-3 sm:mb-6 w-full"
           >
-            <h1 className="text-5xl sm:text-8xl lg:text-[11rem] font-black tracking-tight leading-none flex flex-wrap items-center justify-center gap-2 sm:gap-6 md:gap-8">
+            <h1 className="text-4xl xs:text-5xl sm:text-8xl lg:text-[11rem] font-black tracking-tight leading-none flex flex-wrap items-center justify-center gap-1.5 sm:gap-6 md:gap-8">
               
               {/* Festival Name Letters */}
               <span className="inline-flex items-center">
@@ -107,7 +107,7 @@ export default function Hero() {
               </span>
 
               {/* Year Letters */}
-              <span className="inline-flex items-center text-4xl sm:text-7xl lg:text-[9.5rem]">
+              <span className="inline-flex items-center text-3xl xs:text-4xl sm:text-7xl lg:text-[9.5rem]">
                 {yearLetters.map((char, index) => (
                   <motion.span
                     key={index}
@@ -128,26 +128,26 @@ export default function Hero() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.3 }}
-            className="mb-8 sm:mb-10 max-w-5xl w-full flex flex-col items-center"
+            className="mb-6 sm:mb-10 max-w-5xl w-full flex flex-col items-center"
           >
             {/* Single Line: GOVERNMENT COLLEGE OF ENGINEERING */}
-            <h2 className="text-xs xs:text-sm sm:text-2xl md:text-3xl lg:text-4xl font-black text-gradient-shimmer tracking-[0.08em] sm:tracking-[0.18em] uppercase leading-tight mb-2 sm:mb-3">
+            <h2 className="text-xs xs:text-sm sm:text-2xl md:text-3xl lg:text-4xl font-black text-gradient-shimmer tracking-[0.06em] sm:tracking-[0.18em] uppercase leading-tight mb-2 sm:mb-3">
               {collegeName}
             </h2>
 
             {/* Line 2: Vector Line Flanked Location Badge */}
-            <div className="flex items-center justify-center gap-3 sm:gap-6 w-full">
-              <div className="h-[2px] w-8 sm:w-28 bg-gradient-to-r from-transparent via-amber-500 to-blue-600 rounded-full" />
+            <div className="flex items-center justify-center gap-2 sm:gap-6 w-full">
+              <div className="h-[2px] w-4 sm:w-28 bg-gradient-to-r from-transparent via-amber-500 to-blue-600 rounded-full" />
               
-              <h3 className="text-2xl sm:text-5xl lg:text-6xl font-black tracking-[0.2em] sm:tracking-[0.3em] uppercase text-stroke-gold hover:text-amber-600 transition-colors cursor-pointer px-1">
+              <h3 className="text-xl sm:text-5xl lg:text-6xl font-black tracking-[0.12em] sm:tracking-[0.3em] uppercase text-stroke-gold hover:text-amber-600 transition-colors cursor-pointer px-1">
                 {collegeLocation}
               </h3>
               
-              <div className="h-[2px] w-8 sm:w-28 bg-gradient-to-l from-transparent via-amber-500 to-blue-600 rounded-full" />
+              <div className="h-[2px] w-4 sm:w-28 bg-gradient-to-l from-transparent via-amber-500 to-blue-600 rounded-full" />
             </div>
 
-            <p className="text-[0.68rem] sm:text-sm font-black text-slate-400 tracking-[0.18em] sm:tracking-[0.25em] uppercase mt-2.5 flex items-center justify-center gap-1.5">
-              <MapPin size={13} className="text-blue-600 shrink-0" />
+            <p className="text-[0.65rem] sm:text-sm font-black text-slate-400 tracking-[0.14em] sm:tracking-[0.25em] uppercase mt-2 sm:mt-2.5 flex items-center justify-center gap-1.5">
+              <MapPin size={12} className="text-blue-600 shrink-0" />
               <span>Bhawanipatna, Odisha • Inter-Branch Meet</span>
             </p>
           </motion.div>

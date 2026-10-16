@@ -41,14 +41,14 @@ export default function AdminDashboardModal() {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="bg-white rounded-3xl max-w-5xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto shadow-2xl relative z-10 border border-slate-200"
+          className="bg-white rounded-2xl sm:rounded-3xl max-w-5xl w-full p-4 sm:p-8 max-h-[92vh] overflow-y-auto shadow-2xl relative z-10 border border-slate-200"
         >
           {/* Close Button */}
           <button
             onClick={() => setShowAdminDashboard(false)}
-            className="absolute top-5 right-5 w-10 h-10 rounded-full bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-700 flex items-center justify-center transition-colors shadow-sm"
+            className="absolute top-3.5 right-3.5 sm:top-5 sm:right-5 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-700 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
 
           {/* Header */}

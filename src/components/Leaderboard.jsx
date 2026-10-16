@@ -31,7 +31,7 @@ export default function Leaderboard() {
   ];
 
   return (
-    <section id="leaderboard" className="py-24 bg-white relative overflow-hidden select-none">
+    <section id="leaderboard" className="py-12 sm:py-24 bg-white relative overflow-hidden select-none">
       
       {/* Ambient Radial Lighting */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[850px] h-[850px] bg-amber-500/5 rounded-full blur-[180px] pointer-events-none" />
@@ -62,10 +62,10 @@ export default function Leaderboard() {
         {/* DAY SELECTOR TABS & POINT RULE BADGE */}
         <div className="max-w-4xl mx-auto mb-8 space-y-4">
           
-          <div className="flex items-center justify-center gap-2 overflow-x-auto no-scrollbar pb-1">
+          <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto scrollbar-none pb-1">
             <button
               onClick={() => setActiveTab('overall')}
-              className={`px-5 py-2.5 rounded-full font-black text-xs transition-all shrink-0 ${
+              className={`px-4 sm:px-5 py-2 sm:py-2.5 rounded-full font-black text-xs transition-all shrink-0 cursor-pointer ${
                 activeTab === 'overall'
                   ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/25 scale-102'
                   : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
@@ -152,41 +152,41 @@ export default function Leaderboard() {
           </div>
 
           {/* METALLIC SCORECARD TABLE */}
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full text-left border-collapse text-xs sm:text-sm">
               <thead>
-                <tr className="bg-slate-900 text-white font-black uppercase tracking-wider text-[0.68rem] sm:text-xs">
-                  <th className="py-4 px-4 sm:px-6">Rank</th>
-                  <th className="py-4 px-4 sm:px-6">Engineering Branch</th>
-                  <th className="py-4 px-3 sm:px-6 text-center">Athletics Medals (5/3/1 Pts)</th>
-                  <th className="py-4 px-3 sm:px-6 text-center">Team Medals (8/5 Pts)</th>
-                  <th className="py-4 px-4 sm:px-6 text-right">Points Score</th>
+                <tr className="bg-slate-900 text-white font-black uppercase tracking-wider text-[0.65rem] sm:text-xs">
+                  <th className="py-3 px-3 sm:py-4 sm:px-6">Rank</th>
+                  <th className="py-3 px-3 sm:py-4 sm:px-6">Engineering Branch</th>
+                  <th className="py-3 px-2.5 sm:py-4 sm:px-6 text-center">Athletics Medals (5/3/1 Pts)</th>
+                  <th className="py-3 px-2.5 sm:py-4 sm:px-6 text-center">Team Medals (8/5 Pts)</th>
+                  <th className="py-3 px-3 sm:py-4 sm:px-6 text-right">Points</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-bold">
                 {currentStandings.map((row, idx) => (
                   <tr key={`table-row-${row.code || idx}`} className="hover:bg-amber-50/40 transition-colors">
-                    <td className="py-4 px-4 sm:px-6 font-mono font-black text-slate-900">
+                    <td className="py-3 px-3 sm:py-4 sm:px-6 font-mono font-black text-slate-900">
                       #{idx + 1}
                     </td>
 
-                    <td className="py-4 px-4 sm:px-6 font-black text-slate-900 flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                    <td className="py-3 px-3 sm:py-4 sm:px-6 font-black text-slate-900 flex items-center gap-2">
+                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
                         {getBranchIcon(row.code)}
                       </div>
-                      <span className="truncate">{row.displayName}</span>
+                      <span className="truncate max-w-[130px] sm:max-w-none">{row.displayName}</span>
                     </td>
 
-                    <td className="py-4 px-3 sm:px-6 text-center font-bold text-slate-700">
+                    <td className="py-3 px-2.5 sm:py-4 sm:px-6 text-center font-bold text-slate-700 whitespace-nowrap">
                       🥇{row.athGold} 🥈{row.athSilver} 🥉{row.athBronze}
                     </td>
 
-                    <td className="py-4 px-3 sm:px-6 text-center font-bold text-slate-700">
+                    <td className="py-3 px-2.5 sm:py-4 sm:px-6 text-center font-bold text-slate-700 whitespace-nowrap">
                       🥇{row.teamGold} 🥈{row.teamSilver}
                     </td>
 
-                    <td className="py-4 px-4 sm:px-6 text-right">
-                      <span className="px-3.5 py-1 bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-full shadow-sm">
+                    <td className="py-3 px-3 sm:py-4 sm:px-6 text-right whitespace-nowrap">
+                      <span className="px-2.5 sm:px-3.5 py-1 bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-full shadow-xs">
                         {row.totalPoints} PTS
                       </span>
                     </td>

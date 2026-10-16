@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ShieldCheck, Sliders } from 'lucide-react';
+import { ShieldCheck, LayoutDashboard, Sliders, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
 export default function AdminFloatingTrigger() {
@@ -16,27 +16,37 @@ export default function AdminFloatingTrigger() {
 
   return (
     <motion.button
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.9 }}
+      whileHover={{ scale: 1.05, y: -2 }}
+      whileTap={{ scale: 0.95 }}
       onClick={handleClick}
-      className={`fixed bottom-6 right-6 z-40 p-3.5 rounded-full shadow-2xl transition-all flex items-center gap-2 font-black text-xs uppercase tracking-wider ${
+      className={`fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-full shadow-2xl transition-all flex items-center gap-2.5 font-black text-xs uppercase tracking-wider backdrop-blur-xl border cursor-pointer ${
         isAdminLoggedIn
-          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/30'
-          : 'bg-slate-900/90 backdrop-blur-md hover:bg-blue-600 text-white shadow-slate-900/40 border border-slate-700'
+          ? 'bg-blue-600/95 hover:bg-blue-500 text-white border-blue-400/40 shadow-blue-600/30'
+          : 'bg-slate-900/90 hover:bg-slate-800 text-white border-slate-700/80 shadow-slate-950/50 hover:border-slate-600'
       }`}
-      title={isAdminLoggedIn ? "Open Admin Dashboard Workspace" : "Admin Login Page"}
+      title={isAdminLoggedIn ? "Open Admin Control Dashboard" : "Access Admin Login Portal"}
     >
+      <span className="relative flex h-2 w-2">
+        <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+          isAdminLoggedIn ? 'bg-emerald-400' : 'bg-amber-400'
+        }`} />
+        <span className={`relative inline-flex rounded-full h-2 w-2 ${
+          isAdminLoggedIn ? 'bg-emerald-400' : 'bg-amber-400'
+        }`} />
+      </span>
+
       {isAdminLoggedIn ? (
         <>
-          <Sliders size={18} />
-          <span className="hidden sm:inline">Admin Workspace</span>
+          <LayoutDashboard size={15} />
+          <span className="hidden sm:inline">Admin Dashboard</span>
         </>
       ) : (
         <>
-          <ShieldCheck size={18} className="text-amber-400" />
-          <span className="hidden sm:inline">Admin Access</span>
+          <ShieldCheck size={15} className="text-amber-400" />
+          <span className="hidden sm:inline">Admin Portal</span>
         </>
       )}
     </motion.button>
   );
 }
+

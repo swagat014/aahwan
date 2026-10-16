@@ -38,7 +38,8 @@ export default function SportsShowcase({ onSelectSport }) {
     'Volleyball Championship': '🏐',
     'Kho-Kho Tournament': '🏃',
     'Table Tennis Championship': '🏓',
-    'Kabaddi League': '🤼'
+    'Kabaddi League': '🤼',
+    'Tug of War Championship': '🪢'
   };
 
   const filteredSports = displaySports.filter(sport => {

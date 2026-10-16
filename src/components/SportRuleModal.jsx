@@ -40,7 +40,7 @@ export default function SportRuleModal({ sport, onClose }) {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 select-none">
+      <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-6 select-none">
         
         {/* Backdrop */}
         <motion.div
@@ -57,7 +57,7 @@ export default function SportRuleModal({ sport, onClose }) {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 max-h-[90vh] overflow-y-auto shadow-2xl relative z-10 border border-slate-200"
+          className="bg-white rounded-2xl sm:rounded-3xl max-w-2xl w-full p-4 sm:p-7 max-h-[92vh] overflow-y-auto shadow-2xl relative z-10 border border-slate-200"
         >
           
           {/* Top Bar with Category & Close Button */}
@@ -140,7 +140,7 @@ export default function SportRuleModal({ sport, onClose }) {
           </div>
 
           {/* Action Footer */}
-          <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-4">
+          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <span className="text-[0.65rem] uppercase text-slate-500 font-black block">Ready to compete?</span>
               <span className="text-xs font-bold text-slate-800">Register now for {sport.title}</span>
@@ -148,7 +148,7 @@ export default function SportRuleModal({ sport, onClose }) {
 
             <button
               onClick={handleOpenRegistration}
-              className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-full shadow-md flex items-center gap-1.5 transition-all"
+              className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-full shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-98"
             >
               <span>Register as Athlete</span>
               <ChevronRight size={16} />

@@ -53,11 +53,25 @@ export function AppProvider({ children }) {
     const saved = localStorage.getItem('aahwan_sports') || localStorage.getItem('AWAHAAN_sports');
     if (saved) {
       try {
-        const parsed = JSON.parse(saved);
-        return parsed.map(s => ({
-          ...s,
-          image: sanitizePhotoUrl(s.image, '/assets/images/hero_sports_banner_1786976961106.png')
-        }));
+        let parsed = JSON.parse(saved);
+        // Ensure canonical sports like Tug of War exist in local state
+        initialSports.forEach(initSport => {
+          const exists = parsed.some(s => s.id === initSport.id || (s.title && s.title.toLowerCase() === initSport.title.toLowerCase()));
+          if (!exists) {
+            parsed.push(initSport);
+          }
+        });
+        // Sync default division rules for the canonical roster
+        parsed = parsed.map(s => {
+          const initMatch = initialSports.find(init => init.id === s.id || (init.title && init.title.toLowerCase() === (s.title || '').toLowerCase()));
+          return {
+            ...s,
+            division: s.division || (initMatch ? initMatch.division : 'both'),
+            divisionName: s.divisionName || (initMatch ? initMatch.divisionName : 'Boys & Girls Divisions'),
+            image: sanitizePhotoUrl(s.image, '/assets/images/hero_sports_banner_1786976961106.png')
+          };
+        });
+        return parsed;
       } catch (e) {
         console.warn('Failed to parse sports:', e);
       }

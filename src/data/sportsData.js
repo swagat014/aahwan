@@ -60,8 +60,8 @@ export const sportsData = [
     category: 'athletics',
     categoryName: 'Track Event',
     title: '800m Middle-Distance Race',
-    division: 'both',
-    divisionName: 'Boys & Girls Divisions',
+    division: 'boys',
+    divisionName: 'Boys Division Only',
     image: '/assets/images/hero_sports_banner_1786976961106.png',
     venue: 'GCEK Athletic Oval',
     time: 'Day 2 - 09:30 AM',
@@ -78,8 +78,8 @@ export const sportsData = [
     category: 'athletics',
     categoryName: 'Track Event',
     title: '1500m Distance Race',
-    division: 'both',
-    divisionName: 'Boys & Girls Divisions',
+    division: 'boys',
+    divisionName: 'Boys Division Only',
     image: '/assets/images/hero_sports_banner_1786976961106.png',
     venue: 'GCEK Main Athletic Oval',
     time: 'Day 2 - 03:00 PM',
@@ -132,8 +132,8 @@ export const sportsData = [
     category: 'athletics',
     categoryName: 'Field Event',
     title: 'Triple Jump (Hop, Step & Jump)',
-    division: 'both',
-    divisionName: 'Boys & Girls Divisions',
+    division: 'boys',
+    divisionName: 'Boys Division Only',
     image: '/assets/images/indoor_team_sports_1786977084385.png',
     venue: 'GCEK Sand Pit Sector B',
     time: 'Day 2 - 02:00 PM',
@@ -224,8 +224,8 @@ export const sportsData = [
     category: 'team',
     categoryName: 'Team Sport',
     title: 'Cricket Tournament',
-    division: 'both',
-    divisionName: 'Boys & Girls Divisions',
+    division: 'boys',
+    divisionName: 'Boys Division Only',
     image: '/assets/images/cricket_football_action_1786976997763.png',
     venue: 'GCEK Main Cricket Ground',
     time: 'Day 1 to 3',
@@ -234,7 +234,7 @@ export const sportsData = [
     rules: [
       '10 overs per side for prelims, 15 overs for Grand Finals.',
       'Maximum 2 overs per bowler in 10-over matches.',
-      'Separate Boys and Girls Inter-Branch Tournaments.',
+      'Boys Inter-Branch Championship Tournament.',
       'Super Over in case of a tie.'
     ]
   },
@@ -243,15 +243,15 @@ export const sportsData = [
     category: 'team',
     categoryName: 'Team Sport',
     title: 'Football Champions Cup',
-    division: 'both',
-    divisionName: 'Boys & Girls Divisions',
+    division: 'boys',
+    divisionName: 'Boys Division Only',
     image: '/assets/images/cricket_football_action_1786976997763.png',
     venue: 'GCEK Football Arena',
     time: 'Day 2 & 3',
     coordinator: 'Football Convener',
     desc: '11-a-side inter-branch football league filled with tactical gameplay, long range strikes, and penalty shootouts.',
     rules: [
-      '30-minute halves for Boys; 20-minute halves for Girls.',
+      '30-minute halves for match fixtures.',
       'Up to 5 substitutions permitted per team.',
       'Direct penalty shootout if tied at full time.'
     ]
@@ -297,8 +297,8 @@ export const sportsData = [
     category: 'team',
     categoryName: 'Team Sport',
     title: 'Volleyball Championship',
-    division: 'both',
-    divisionName: 'Boys & Girls Divisions',
+    division: 'boys',
+    divisionName: 'Boys Division Only',
     image: '/assets/images/indoor_team_sports_1786977084385.png',
     venue: 'GCEK Hard-Court Arena',
     time: 'Day 1 & 2',
@@ -307,7 +307,7 @@ export const sportsData = [
     rules: [
       'Best of 3 sets for preliminary matches; Best of 5 for Finals.',
       'Rally point system up to 25 points per set.',
-      'Boys and Girls divisions hosted on separate courts.'
+      'Inter-branch boys championship rules apply.'
     ]
   },
   {
@@ -333,8 +333,8 @@ export const sportsData = [
     category: 'indoor',
     categoryName: 'Racket Sport',
     title: 'Table Tennis Championship',
-    division: 'both',
-    divisionName: 'Boys & Girls Divisions',
+    division: 'boys',
+    divisionName: 'Boys Division Only',
     image: '/assets/images/indoor_team_sports_1786977084385.png',
     venue: 'GCEK Indoor Sports Complex',
     time: 'Day 1 & 2',
@@ -363,5 +363,87 @@ export const sportsData = [
       '30-second raid clock with Do-or-Die raid enforcement.',
       'Super Tackle yields 2 points for defense.'
     ]
+  },
+  {
+    id: 'sport-tugofwar',
+    category: 'team',
+    categoryName: 'Team Sport',
+    title: 'Tug of War Championship',
+    division: 'both',
+    divisionName: 'Boys & Girls Divisions',
+    image: '/assets/images/indoor_team_sports_1786977084385.png',
+    venue: 'GCEK Central Arena',
+    time: 'Day 2 - 04:30 PM',
+    coordinator: 'Tug of War Convener',
+    desc: 'Ultimate inter-branch raw strength and synchronized team tug pull championship on grass arena.',
+    rules: [
+      '8 players per squad with total combined weight rules enforced.',
+      'Best of 3 pulls; 2 minutes recovery time between pulls.',
+      'Cleats/spikes prohibited; flat sports shoes strictly required.',
+      'Pulling over the 4-meter marker wins the contest.'
+    ]
   }
 ];
+
+// The 14 official sports permitted exclusively for Girls Division
+export const GIRLS_ALLOWED_SPORTS_TITLES = [
+  '100m Sprint',
+  '200m Sprint',
+  '400m Sprint',
+  'Shot Put Throw',
+  'Discus Throw',
+  'Javelin Throw',
+  'Long Jump',
+  'High Jump',
+  '4 x 400m Relay Race',
+  'Badminton Championship',
+  'Chess Rapid & Blitz Tournament',
+  'Kho-Kho Tournament',
+  'Kabaddi League',
+  'Tug of War Championship'
+];
+
+/**
+ * Checks whether an event title or sport object is permitted for Girls Division
+ */
+export const isGirlsEvent = (sportOrTitle) => {
+  if (!sportOrTitle) return false;
+  const title = typeof sportOrTitle === 'string' ? sportOrTitle : (sportOrTitle.title || '');
+  const id = typeof sportOrTitle === 'object' ? (sportOrTitle.id || '') : '';
+  const div = typeof sportOrTitle === 'object' ? (sportOrTitle.division || '') : '';
+
+  if (div === 'girls') return true;
+  if (div === 'boys') return false;
+
+  const t = title.toLowerCase().trim();
+  const i = id.toLowerCase().trim();
+
+  // Strict check matching the 14 approved events
+  if (t.includes('100m') || i.includes('100m')) return true;
+  if (t.includes('200m') || i.includes('200m')) return true;
+  if (t.includes('400m') || i.includes('400m')) return true;
+  if (t.includes('shot put') || t.includes('shotput') || i.includes('shotput')) return true;
+  if (t.includes('discus') || t.includes('discuss') || i.includes('discus')) return true;
+  if (t.includes('javelin') || t.includes('javline') || i.includes('javelin')) return true;
+  if (t.includes('long jump') || i.includes('longjump')) return true;
+  if (t.includes('high jump') || t.includes('hight jump') || i.includes('highjump')) return true;
+  if (t.includes('relay') || t.includes('realay') || i.includes('relay')) return true;
+  if (t.includes('badminton') || t.includes('badmintion') || i.includes('badminton')) return true;
+  if (t.includes('chess') || i.includes('chess')) return true;
+  if (t.includes('kho') || i.includes('khokho')) return true;
+  if (t.includes('kabaddi') || t.includes('kabbadi') || i.includes('kabaddi')) return true;
+  if (t.includes('tug of war') || t.includes('tug-of-war') || i.includes('tugofwar')) return true;
+
+  return false;
+};
+
+/**
+ * Checks whether an event title or sport object is permitted for Boys Division
+ */
+export const isBoysEvent = (sportOrTitle) => {
+  if (!sportOrTitle) return false;
+  const div = typeof sportOrTitle === 'object' ? (sportOrTitle.division || '') : '';
+  if (div === 'girls') return false;
+  return true;
+};
+

@@ -11,7 +11,7 @@ export default function Schedule() {
   const activeFixtures = schedule[activeDay] || [];
 
   return (
-    <section id="schedule" className="py-24 bg-white relative overflow-hidden select-none">
+    <section id="schedule" className="py-12 sm:py-24 bg-white relative overflow-hidden select-none">
 
       {/* Radial Ambient Glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[850px] h-[850px] bg-blue-500/5 rounded-full blur-[180px] pointer-events-none" />
@@ -24,28 +24,28 @@ export default function Schedule() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.5 }}
-          className="text-center max-w-3xl mx-auto mb-12"
+          className="text-center max-w-3xl mx-auto mb-8 sm:mb-12"
         >
-          <div className="inline-flex items-center gap-2 px-5 py-2 bg-blue-50 text-blue-600 border border-blue-200/90 rounded-full text-xs font-black uppercase tracking-widest mb-3 shadow-sm">
-            <Calendar size={15} className="text-amber-500" /> Match Fixtures & Timetable
+          <div className="inline-flex items-center gap-2 px-4 sm:px-5 py-1.5 sm:py-2 bg-blue-50 text-blue-600 border border-blue-200/90 rounded-full text-[0.68rem] sm:text-xs font-black uppercase tracking-widest mb-3 shadow-xs">
+            <Calendar size={14} className="text-amber-500" /> Match Fixtures & Timetable
           </div>
 
-          <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight mb-3">
+          <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight mb-2 sm:mb-3">
             {festivalName} {year} Official Schedule
           </h2>
 
-          <p className="text-slate-600 text-base font-medium">
+          <p className="text-slate-600 text-sm sm:text-base font-medium">
             Track live heats, preliminary rounds, and championship finals across all festival action days.
           </p>
         </motion.div>
 
         {/* Dynamic Day Selector Tabs (Horizontal Scroll on Mobile) */}
-        <div className="flex items-center justify-center gap-2 overflow-x-auto no-scrollbar pb-1 mb-8 sm:mb-10 w-full">
+        <div className="flex items-center justify-start sm:justify-center gap-2 overflow-x-auto scrollbar-none pb-1 mb-6 sm:mb-10 w-full">
           {dayNumbers.map(dayNum => (
             <button
               key={dayNum}
               onClick={() => setActiveDay(dayNum)}
-              className={`relative px-6 py-2.5 rounded-full font-black text-xs transition-colors ${activeDay === dayNum
+              className={`relative px-4 sm:px-6 py-2 sm:py-2.5 rounded-full font-black text-xs transition-colors shrink-0 cursor-pointer ${activeDay === dayNum
                 ? 'text-white'
                 : 'text-slate-700 hover:text-blue-600 bg-slate-100'
                 }`}
