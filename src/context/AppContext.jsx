@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { sportsData as initialSports } from '../data/sportsData';
 import { scheduleData as initialSchedule, leaderboardData as initialLeaderboard, dignitariesData as initialDignitaries } from '../data/scheduleData';
 import { supabase, uploadImageToSupabase } from '../lib/supabaseClient';
@@ -10,6 +10,55 @@ function sanitizePhotoUrl(url, fallback = '/assets/images/hero_sports_banner_178
     return fallback;
   }
   return url;
+}
+
+function normalizeDignitariesStructure(parsed) {
+  if (!parsed) return initialDignitaries;
+
+  let t1 = [], t2 = [], t3 = [];
+  if (Array.isArray(parsed)) {
+    parsed.forEach(item => {
+      const tier = (item.tier || '').toLowerCase();
+      const person = {
+        name: item.name,
+        role: item.role,
+        dept: item.dept || item.designation || '',
+        image: sanitizePhotoUrl(item.image, '/assets/images/gcek_principal_vp_1786977233454.png'),
+        quote: item.quote || `${item.role} at GCEK Sports Society.`
+      };
+      if (tier === 'tier1' || tier === 'leadership') t1.push(person);
+      else if (tier === 'tier2' || tier === 'patrons') t2.push(person);
+      else t3.push(person);
+    });
+  } else if (typeof parsed === 'object') {
+    t1 = parsed.tier1 || parsed.leadership || [];
+    t2 = parsed.tier2 || parsed.patrons || [];
+    t3 = parsed.tier3 || parsed.coordinators || [];
+  }
+
+  if (!t1.length && !t2.length && !t3.length) return initialDignitaries;
+
+  const res = {
+    tier1: (t1.length ? t1 : initialDignitaries.tier1 || []).map(p => ({
+      ...p,
+      image: sanitizePhotoUrl(p.image, '/assets/images/gcek_principal_vp_1786977233454.png')
+    })),
+    tier2: (t2.length ? t2 : initialDignitaries.tier2 || []).map(p => ({
+      ...p,
+      image: sanitizePhotoUrl(p.image, '/assets/images/gcek_principal_vp_1786977233454.png')
+    })),
+    tier3: (t3.length ? t3 : initialDignitaries.tier3 || []).map(p => ({
+      ...p,
+      image: sanitizePhotoUrl(p.image, '/assets/images/sports_secretary_action_1786977259887.png')
+    }))
+  };
+
+  // Provide backward-compatible aliases
+  res.leadership = res.tier1;
+  res.patrons = res.tier2;
+  res.coordinators = res.tier3;
+
+  return res;
 }
 
 export function AppProvider({ children }) {
@@ -34,19 +83,12 @@ export function AppProvider({ children }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        const sanitized = {};
-        Object.keys(parsed).forEach(tier => {
-          sanitized[tier] = (parsed[tier] || []).map(person => ({
-            ...person,
-            image: sanitizePhotoUrl(person.image, '/assets/images/gcek_principal_vp_1786977233454.png')
-          }));
-        });
-        return sanitized;
+        return normalizeDignitariesStructure(parsed);
       } catch (e) {
         console.warn('Failed to parse dignitaries:', e);
       }
     }
-    return initialDignitaries;
+    return normalizeDignitariesStructure(initialDignitaries);
   });
 
   const [sports, setSports] = useState(() => {
@@ -318,12 +360,77 @@ export function AppProvider({ children }) {
 
   const [showStudentRegistration, setShowStudentRegistration] = useState(false);
 
-  // Fetch global config from Supabase Cloud on mount (so mobile devices load admin edits)
+  // Cloud Sync Status Tracking
+  const isCloudLoadedRef = useRef(false);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
+  const [lastSyncedTime, setLastSyncedTime] = useState(null);
+
+  // Manual & Programmatic save to Supabase site_settings
+  const saveToCloud = async (customOverrides = {}) => {
+    if (!supabase) {
+      console.warn('Supabase client is not connected.');
+      return { success: false, error: 'Supabase client is not configured' };
+    }
+    try {
+      setCloudSyncStatus('syncing');
+      const payload = {
+        year: customOverrides.year !== undefined ? customOverrides.year : year,
+        festivalName: customOverrides.festivalName !== undefined ? customOverrides.festivalName : festivalName,
+        collegeName: customOverrides.collegeName !== undefined ? customOverrides.collegeName : collegeName,
+        collegeLocation: customOverrides.collegeLocation !== undefined ? customOverrides.collegeLocation : collegeLocation,
+        helplinePhone: customOverrides.helplinePhone !== undefined ? customOverrides.helplinePhone : helplinePhone,
+        helplineEmail: customOverrides.helplineEmail !== undefined ? customOverrides.helplineEmail : helplineEmail,
+        statSportsCount: customOverrides.statSportsCount !== undefined ? customOverrides.statSportsCount : statSportsCount,
+        statAthletesCount: customOverrides.statAthletesCount !== undefined ? customOverrides.statAthletesCount : statAthletesCount,
+        statStreamsCount: customOverrides.statStreamsCount !== undefined ? customOverrides.statStreamsCount : statStreamsCount,
+        statDaysCount: customOverrides.statDaysCount !== undefined ? customOverrides.statDaysCount : statDaysCount,
+        sports: customOverrides.sports !== undefined ? customOverrides.sports : sports,
+        dignitaries: customOverrides.dignitaries !== undefined ? customOverrides.dignitaries : dignitaries,
+        schedule: customOverrides.schedule !== undefined ? customOverrides.schedule : schedule,
+        leaderboard: customOverrides.leaderboard !== undefined ? customOverrides.leaderboard : leaderboard,
+        galleryPhotos: customOverrides.galleryPhotos !== undefined ? customOverrides.galleryPhotos : galleryPhotos,
+        sportWinners: customOverrides.sportWinners !== undefined ? customOverrides.sportWinners : sportWinners,
+        dailyMedals: customOverrides.dailyMedals !== undefined ? customOverrides.dailyMedals : dailyMedals,
+        teamPointsRule: customOverrides.teamPointsRule !== undefined ? customOverrides.teamPointsRule : teamPointsRule,
+        athleticsPointsRule: customOverrides.athleticsPointsRule !== undefined ? customOverrides.athleticsPointsRule : athleticsPointsRule,
+        equipmentList: customOverrides.equipmentList !== undefined ? customOverrides.equipmentList : equipmentList,
+        equipmentLogs: customOverrides.equipmentLogs !== undefined ? customOverrides.equipmentLogs : equipmentLogs
+      };
+
+      const { error } = await supabase.from('site_settings').upsert({
+        id: 'global_config',
+        config: payload,
+        updated_at: new Date().toISOString()
+      });
+
+      if (error) {
+        console.warn('Manual saveToCloud error:', error.message);
+        setCloudSyncStatus('error');
+        return { success: false, error: error.message };
+      }
+
+      setCloudSyncStatus('synced');
+      setLastSyncedTime(new Date().toLocaleTimeString());
+      return { success: true };
+    } catch (err) {
+      console.warn('saveToCloud exception:', err);
+      setCloudSyncStatus('error');
+      return { success: false, error: err.message };
+    }
+  };
+
+  // Fetch global config & registrations from Supabase Cloud on mount
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase) {
+      isCloudLoadedRef.current = true;
+      return;
+    }
 
     async function loadCloudConfig() {
       try {
+        setCloudSyncStatus('syncing');
+
+        // 1. Fetch site_settings (master branding, sports, schedule, dignitaries, rules, inventory)
         const { data, error } = await supabase
           .from('site_settings')
           .select('*')
@@ -332,53 +439,202 @@ export function AppProvider({ children }) {
 
         if (!error && data?.config) {
           const cfg = data.config;
-          if (cfg.year) setYear(cfg.year);
-          if (cfg.festivalName) setFestivalName(cfg.festivalName);
-          if (cfg.collegeName) setCollegeName(cfg.collegeName);
-          if (cfg.collegeLocation) setCollegeLocation(cfg.collegeLocation);
+          if (cfg.year) { setYear(cfg.year); localStorage.setItem('aahwan_year', cfg.year); localStorage.setItem('AWAHAAN_year', cfg.year); }
+          if (cfg.festivalName) { setFestivalName(cfg.festivalName); localStorage.setItem('aahwan_name', cfg.festivalName); localStorage.setItem('AWAHAAN_name', cfg.festivalName); }
+          if (cfg.collegeName) { setCollegeName(cfg.collegeName); localStorage.setItem('aahwan_college', cfg.collegeName); localStorage.setItem('AWAHAAN_college', cfg.collegeName); }
+          if (cfg.collegeLocation) { setCollegeLocation(cfg.collegeLocation); localStorage.setItem('aahwan_location', cfg.collegeLocation); localStorage.setItem('AWAHAAN_location', cfg.collegeLocation); }
+          if (cfg.helplinePhone) { setHelplinePhone(cfg.helplinePhone); localStorage.setItem('aahwan_phone', cfg.helplinePhone); localStorage.setItem('AWAHAAN_phone', cfg.helplinePhone); }
+          if (cfg.helplineEmail) { setHelplineEmail(cfg.helplineEmail); localStorage.setItem('aahwan_email', cfg.helplineEmail); localStorage.setItem('AWAHAAN_email', cfg.helplineEmail); }
+          if (cfg.statSportsCount) { setStatSportsCount(cfg.statSportsCount); localStorage.setItem('aahwan_stat_sports', cfg.statSportsCount); localStorage.setItem('AWAHAAN_stat_sports', cfg.statSportsCount); }
+          if (cfg.statAthletesCount) { setStatAthletesCount(cfg.statAthletesCount); localStorage.setItem('aahwan_stat_athletes', cfg.statAthletesCount); localStorage.setItem('AWAHAAN_stat_athletes', cfg.statAthletesCount); }
+          if (cfg.statStreamsCount) { setStatStreamsCount(cfg.statStreamsCount); localStorage.setItem('aahwan_stat_streams', cfg.statStreamsCount); localStorage.setItem('AWAHAAN_stat_streams', cfg.statStreamsCount); }
+          if (cfg.statDaysCount) { setStatDaysCount(cfg.statDaysCount); localStorage.setItem('aahwan_stat_days', cfg.statDaysCount); localStorage.setItem('AWAHAAN_stat_days', cfg.statDaysCount); }
+          if (cfg.sports && Array.isArray(cfg.sports) && cfg.sports.length > 0) {
+            setSports(cfg.sports);
+            localStorage.setItem('aahwan_sports', JSON.stringify(cfg.sports));
+            localStorage.setItem('AWAHAAN_sports', JSON.stringify(cfg.sports));
+          }
+          if (cfg.dignitaries) {
+            const normalized = normalizeDignitariesStructure(cfg.dignitaries);
+            setDignitaries(normalized);
+            localStorage.setItem('aahwan_dignitaries', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_dignitaries', JSON.stringify(normalized));
+          }
+          if (cfg.schedule) {
+            setSchedule(cfg.schedule);
+            localStorage.setItem('aahwan_schedule', JSON.stringify(cfg.schedule));
+            localStorage.setItem('AWAHAAN_schedule', JSON.stringify(cfg.schedule));
+          }
+          if (cfg.leaderboard) {
+            setLeaderboard(cfg.leaderboard);
+            localStorage.setItem('aahwan_leaderboard', JSON.stringify(cfg.leaderboard));
+            localStorage.setItem('AWAHAAN_leaderboard', JSON.stringify(cfg.leaderboard));
+          }
+          if (cfg.galleryPhotos) {
+            setGalleryPhotos(cfg.galleryPhotos);
+            localStorage.setItem('aahwan_gallery', JSON.stringify(cfg.galleryPhotos));
+            localStorage.setItem('AWAHAAN_gallery', JSON.stringify(cfg.galleryPhotos));
+          }
+          if (cfg.sportWinners) {
+            setSportWinners(cfg.sportWinners);
+            localStorage.setItem('aahwan_sport_winners', JSON.stringify(cfg.sportWinners));
+            localStorage.setItem('AWAHAAN_sport_winners', JSON.stringify(cfg.sportWinners));
+          }
+          if (cfg.dailyMedals) {
+            setDailyMedals(cfg.dailyMedals);
+            localStorage.setItem('aahwan_daily_medals', JSON.stringify(cfg.dailyMedals));
+            localStorage.setItem('AWAHAAN_daily_medals', JSON.stringify(cfg.dailyMedals));
+          }
+          if (cfg.teamPointsRule) {
+            setTeamPointsRule(cfg.teamPointsRule);
+            localStorage.setItem('aahwan_team_points_rule', JSON.stringify(cfg.teamPointsRule));
+            localStorage.setItem('AWAHAAN_team_points_rule', JSON.stringify(cfg.teamPointsRule));
+          }
+          if (cfg.athleticsPointsRule) {
+            setAthleticsPointsRule(cfg.athleticsPointsRule);
+            localStorage.setItem('aahwan_ath_points_rule', JSON.stringify(cfg.athleticsPointsRule));
+            localStorage.setItem('AWAHAAN_ath_points_rule', JSON.stringify(cfg.athleticsPointsRule));
+          }
+          if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
+            setEquipmentList(cfg.equipmentList);
+            localStorage.setItem('aahwan_equipment', JSON.stringify(cfg.equipmentList));
+          }
+          if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
+            setEquipmentLogs(cfg.equipmentLogs);
+            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(cfg.equipmentLogs));
+          }
+        }
+
+        // 2. Fetch student registrations from Supabase registrations table
+        const { data: cloudRegs, error: regError } = await supabase
+          .from('registrations')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!regError && cloudRegs && cloudRegs.length > 0) {
+          const mapped = cloudRegs.map(r => ({
+            id: r.id,
+            rollNo: r.roll_no,
+            name: r.name,
+            branch: r.branch,
+            year: r.year,
+            gender: r.gender,
+            phone: r.phone,
+            email: r.email,
+            events: Array.isArray(r.events) ? r.events : (typeof r.events === 'string' ? JSON.parse(r.events) : []),
+            timestamp: r.created_at
+          }));
+          setRegistrations(mapped);
+          localStorage.setItem('aahwan_registrations', JSON.stringify(mapped));
+          localStorage.setItem('AWAHAAN_registrations', JSON.stringify(mapped));
+        }
+
+        setCloudSyncStatus('synced');
+        setLastSyncedTime(new Date().toLocaleTimeString());
+      } catch (err) {
+        console.warn('Cloud config load bypassed:', err);
+        setCloudSyncStatus('error');
+      } finally {
+        isCloudLoadedRef.current = true;
+      }
+    }
+
+    loadCloudConfig();
+
+    // Subscribe to Realtime Cloud changes on site_settings
+    const settingsChannel = supabase
+      .channel('public:site_settings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, (payload) => {
+        if (payload.new && payload.new.config) {
+          const cfg = payload.new.config;
+          if (cfg.festivalName) {
+            setFestivalName(cfg.festivalName);
+            localStorage.setItem('aahwan_name', cfg.festivalName);
+            localStorage.setItem('AWAHAAN_name', cfg.festivalName);
+          }
+          if (cfg.collegeName) {
+            setCollegeName(cfg.collegeName);
+            localStorage.setItem('aahwan_college', cfg.collegeName);
+            localStorage.setItem('AWAHAAN_college', cfg.collegeName);
+          }
+          if (cfg.year) {
+            setYear(cfg.year);
+            localStorage.setItem('aahwan_year', cfg.year);
+            localStorage.setItem('AWAHAAN_year', cfg.year);
+          }
+          if (cfg.collegeLocation) {
+            setCollegeLocation(cfg.collegeLocation);
+            localStorage.setItem('aahwan_location', cfg.collegeLocation);
+            localStorage.setItem('AWAHAAN_location', cfg.collegeLocation);
+          }
           if (cfg.helplinePhone) setHelplinePhone(cfg.helplinePhone);
           if (cfg.helplineEmail) setHelplineEmail(cfg.helplineEmail);
           if (cfg.statSportsCount) setStatSportsCount(cfg.statSportsCount);
           if (cfg.statAthletesCount) setStatAthletesCount(cfg.statAthletesCount);
           if (cfg.statStreamsCount) setStatStreamsCount(cfg.statStreamsCount);
           if (cfg.statDaysCount) setStatDaysCount(cfg.statDaysCount);
-          if (cfg.sports) setSports(cfg.sports);
-          if (cfg.dignitaries) setDignitaries(cfg.dignitaries);
+          if (cfg.sports && Array.isArray(cfg.sports)) setSports(cfg.sports);
+          if (cfg.dignitaries) {
+            const normalized = normalizeDignitariesStructure(cfg.dignitaries);
+            setDignitaries(normalized);
+            localStorage.setItem('aahwan_dignitaries', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_dignitaries', JSON.stringify(normalized));
+          }
           if (cfg.schedule) setSchedule(cfg.schedule);
           if (cfg.leaderboard) setLeaderboard(cfg.leaderboard);
           if (cfg.galleryPhotos) setGalleryPhotos(cfg.galleryPhotos);
+          if (cfg.sportWinners) setSportWinners(cfg.sportWinners);
+          if (cfg.dailyMedals) setDailyMedals(cfg.dailyMedals);
+          if (cfg.teamPointsRule) setTeamPointsRule(cfg.teamPointsRule);
+          if (cfg.athleticsPointsRule) setAthleticsPointsRule(cfg.athleticsPointsRule);
+          if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) setEquipmentList(cfg.equipmentList);
+          if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) setEquipmentLogs(cfg.equipmentLogs);
+          setLastSyncedTime(new Date().toLocaleTimeString());
         }
-      } catch (err) {
-        console.warn('Cloud config load bypassed:', err);
-      }
-    }
+      })
+      .subscribe();
 
-    loadCloudConfig();
-
-    // Subscribe to Realtime Cloud changes so mobile devices auto-update live
-    const channel = supabase
-      .channel('public:site_settings')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, (payload) => {
-        // Do NOT overwrite current admin typing session to avoid input flickering
-        const isEditingAdmin = localStorage.getItem('aahwan_admin_session') === 'true';
-        if (isEditingAdmin) return;
-
-        if (payload.new && payload.new.config) {
-          const cfg = payload.new.config;
-          if (cfg.festivalName) setFestivalName(cfg.festivalName);
-          if (cfg.collegeName) setCollegeName(cfg.collegeName);
-          if (cfg.year) setYear(cfg.year);
-          if (cfg.collegeLocation) setCollegeLocation(cfg.collegeLocation);
-          if (cfg.sports) setSports(cfg.sports);
-          if (cfg.dignitaries) setDignitaries(cfg.dignitaries);
-          if (cfg.schedule) setSchedule(cfg.schedule);
-          if (cfg.galleryPhotos) setGalleryPhotos(cfg.galleryPhotos);
+    // Subscribe to Realtime Cloud changes on registrations (instantly displays new students in Admin Panel)
+    const registrationsChannel = supabase
+      .channel('public:registrations')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, (payload) => {
+        if (payload.eventType === 'INSERT' && payload.new) {
+          const r = payload.new;
+          const incoming = {
+            id: r.id,
+            rollNo: r.roll_no,
+            name: r.name,
+            branch: r.branch,
+            year: r.year,
+            gender: r.gender,
+            phone: r.phone,
+            email: r.email,
+            events: Array.isArray(r.events) ? r.events : (typeof r.events === 'string' ? JSON.parse(r.events) : []),
+            timestamp: r.created_at
+          };
+          setRegistrations(prev => {
+            if (prev.some(x => x.id === incoming.id || (x.rollNo === incoming.rollNo && x.name === incoming.name))) {
+              return prev;
+            }
+            const updated = [incoming, ...prev];
+            localStorage.setItem('aahwan_registrations', JSON.stringify(updated));
+            localStorage.setItem('AWAHAAN_registrations', JSON.stringify(updated));
+            return updated;
+          });
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          setRegistrations(prev => {
+            const updated = prev.filter(r => r.id !== payload.old.id);
+            localStorage.setItem('aahwan_registrations', JSON.stringify(updated));
+            localStorage.setItem('AWAHAAN_registrations', JSON.stringify(updated));
+            return updated;
+          });
         }
       })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(settingsChannel);
+      supabase.removeChannel(registrationsChannel);
     };
   }, []);
 
@@ -441,42 +697,21 @@ export function AppProvider({ children }) {
     localStorage.setItem('aahwan_gallery', JSON.stringify(galleryPhotos));
     localStorage.setItem('AWAHAAN_gallery', JSON.stringify(galleryPhotos));
 
+    localStorage.setItem('aahwan_equipment', JSON.stringify(equipmentList));
+    localStorage.setItem('aahwan_equipment_logs', JSON.stringify(equipmentLogs));
+
     localStorage.setItem('aahwan_registrations', JSON.stringify(registrations));
     localStorage.setItem('AWAHAAN_registrations', JSON.stringify(registrations));
 
-    // Debounced Save to Cloud DB to prevent mid-keystroke flickering
-    if (!supabase || !isAdminLoggedIn) return;
+    // Guard: Never overwrite Cloud on initial mount before cloud data has been loaded
+    if (!isCloudLoadedRef.current || !supabase || !isAdminLoggedIn) return;
 
     const timer = setTimeout(() => {
-      supabase.from('site_settings').upsert({
-        id: 'global_config',
-        config: {
-          year,
-          festivalName,
-          collegeName,
-          collegeLocation,
-          helplinePhone,
-          helplineEmail,
-          statSportsCount,
-          statAthletesCount,
-          statStreamsCount,
-          statDaysCount,
-          sports,
-          dignitaries,
-          schedule,
-          leaderboard,
-          galleryPhotos
-        },
-        updated_at: new Date().toISOString()
-      }).then(({ error }) => {
-        if (error) {
-          console.warn('Supabase config sync:', error.message);
-        }
-      });
+      saveToCloud();
     }, 1200);
 
     return () => clearTimeout(timer);
-  }, [year, festivalName, collegeName, collegeLocation, helplinePhone, helplineEmail, statSportsCount, statAthletesCount, statStreamsCount, statDaysCount, teamPointsRule, athleticsPointsRule, sportWinners, dailyMedals, dignitaries, sports, schedule, leaderboard, galleryPhotos, registrations, isAdminLoggedIn]);
+  }, [year, festivalName, collegeName, collegeLocation, helplinePhone, helplineEmail, statSportsCount, statAthletesCount, statStreamsCount, statDaysCount, teamPointsRule, athleticsPointsRule, sportWinners, dailyMedals, dignitaries, sports, schedule, leaderboard, galleryPhotos, equipmentList, equipmentLogs, registrations, isAdminLoggedIn]);
 
   // Winner Assignments & Dynamic Auto-Calculation Engine for Standings
   const assignSportWinner = (sportId, winnerData) => {
@@ -698,19 +933,59 @@ export function AppProvider({ children }) {
     setViewMode('public');
   };
 
-  // Student Registration Handlers
+  // Student Registration Handlers (Persisted to both Supabase Cloud DB and LocalStorage)
   const addRegistration = (studentData) => {
     const newReg = {
       ...studentData,
-      id: `reg-${Date.now()}`,
+      id: `reg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       timestamp: new Date().toISOString()
     };
-    setRegistrations(prev => [newReg, ...prev]);
+
+    setRegistrations(prev => {
+      const updated = [newReg, ...prev];
+      localStorage.setItem('aahwan_registrations', JSON.stringify(updated));
+      localStorage.setItem('AWAHAAN_registrations', JSON.stringify(updated));
+      return updated;
+    });
+
+    // Instant cloud insert accessible to public student applicants without admin session
+    if (supabase) {
+      supabase.from('registrations').insert({
+        id: newReg.id,
+        roll_no: newReg.rollNo,
+        name: newReg.name,
+        branch: newReg.branch,
+        year: newReg.year,
+        gender: newReg.gender,
+        phone: newReg.phone,
+        email: newReg.email,
+        events: newReg.events || [],
+        created_at: newReg.timestamp
+      }).then(({ error }) => {
+        if (error) console.warn('Supabase registration insert notice:', error.message);
+      }).catch(err => {
+        console.warn('Supabase registration insert exception:', err);
+      });
+    }
+
     return newReg;
   };
 
   const deleteRegistration = (studentId) => {
-    setRegistrations(prev => prev.filter(r => r.id !== studentId));
+    setRegistrations(prev => {
+      const updated = prev.filter(r => r.id !== studentId);
+      localStorage.setItem('aahwan_registrations', JSON.stringify(updated));
+      localStorage.setItem('AWAHAAN_registrations', JSON.stringify(updated));
+      return updated;
+    });
+
+    if (supabase) {
+      supabase.from('registrations').delete().eq('id', studentId).then(({ error }) => {
+        if (error) console.warn('Supabase delete registration notice:', error.message);
+      }).catch(err => {
+        console.warn('Supabase delete registration exception:', err);
+      });
+    }
   };
 
   // Dignitaries CRUD Handlers
@@ -901,7 +1176,10 @@ export function AppProvider({ children }) {
       isAdminLoggedIn,
       showStudentRegistration, setShowStudentRegistration,
       loginAdmin, logoutAdmin,
-      handlePhotoUpload
+      handlePhotoUpload,
+      saveToCloud,
+      cloudSyncStatus,
+      lastSyncedTime
     }}>
       {children}
     </AppContext.Provider>

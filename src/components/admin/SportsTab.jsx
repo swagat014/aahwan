@@ -27,9 +27,11 @@ import {
   Sparkles,
   ChevronRight,
   ShieldAlert,
-  Heart
+  Heart,
+  Printer
 } from 'lucide-react';
 import { isGirlsEvent, isBoysEvent, GIRLS_ALLOWED_SPORTS_TITLES } from '../../data/sportsData';
+import PrintableRosterModal from './PrintableRosterModal';
 
 export default function SportsTab() {
   const { sports, addSport, updateSport, deleteSport, updateSportCategory } = useApp();
@@ -40,6 +42,7 @@ export default function SportsTab() {
   const [searchTerm, setSearchTerm] = useState('');
   const [activeCategory, setActiveCategory] = useState('all'); // 'all' | 'athletics' | 'team' | 'indoor'
   const [divisionFilter, setDivisionFilter] = useState('all'); // 'all' | 'both' | 'boys' | 'girls' | 'boys-only'
+  const [printSportTitle, setPrintSportTitle] = useState(null);
   
   // Sorting State
   const [sortField, setSortField] = useState('title'); // 'title' | 'category' | 'division' | 'venue'
@@ -1019,6 +1022,14 @@ export default function SportsTab() {
                         {/* Actions */}
                         <td className="py-2 px-3.5 text-right space-x-1 shrink-0 whitespace-nowrap">
                           <button
+                            onClick={() => setPrintSportTitle(sport.title)}
+                            className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition cursor-pointer"
+                            title={`Print Official Roster for ${sport.title}`}
+                          >
+                            <Printer size={13} />
+                          </button>
+
+                          <button
                             onClick={() => openEditModal(sport)}
                             className="p-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition cursor-pointer"
                             title="Edit Discipline"
@@ -1146,6 +1157,13 @@ export default function SportsTab() {
                   </div>
 
                   <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={() => setPrintSportTitle(sport.title)}
+                      className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
+                      title={`Print Official Roster for ${sport.title}`}
+                    >
+                      <Printer size={12} />
+                    </button>
                     <button
                       onClick={() => openEditModal(sport)}
                       className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
@@ -1506,6 +1524,14 @@ export default function SportsTab() {
 
           </div>
         </div>
+      )}
+
+      {/* Official Printable Roster Modal */}
+      {printSportTitle && (
+        <PrintableRosterModal
+          sportTitle={printSportTitle}
+          onClose={() => setPrintSportTitle(null)}
+        />
       )}
 
     </div>

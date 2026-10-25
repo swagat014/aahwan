@@ -8,7 +8,7 @@ This folder contains the complete SQL database migration script and instructions
 
 ### 1. Run the Database SQL Script
 
-1. Open your [Supabase Dashboard](https://app.supabase.com) and select your project (`hxspfwjoxxmluhwqbsva`).
+1. Open your [Supabase Dashboard](https://app.supabase.com) and select your project (`ioyvfigbxyoexyqcaxsj`).
 2. In the left navigation sidebar, click **SQL Editor**.
 3. Click **New Query**.
 4. Open [`backend/schema.sql`](file:///c:/Users/skcsa/OneDrive/Desktop/aahwan/backend/schema.sql), copy the entire SQL script, and paste it into the editor.

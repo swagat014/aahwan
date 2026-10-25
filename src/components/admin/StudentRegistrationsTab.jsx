@@ -118,12 +118,12 @@ export default function StudentRegistrationsTab() {
               </button>
             ) : (
               <button
-                onClick={() => setPrintSportTitle(sports[0]?.title || '100m Sprint')}
-                className="flex-1 sm:flex-initial px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                title="Print Official Match Roster"
+                onClick={() => setPrintSportTitle('ALL_ATHLETICS')}
+                className="flex-1 sm:flex-initial px-3.5 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                title="Print Official Master Athletics Participation Roster & Results"
               >
                 <Printer size={13} />
-                <span>Print Roster</span>
+                <span>Print Athletics Roster</span>
               </button>
             )}
           </div>
@@ -315,13 +315,15 @@ export default function StudentRegistrationsTab() {
                   <div className="flex flex-wrap gap-1">
                     {student.events && student.events.length > 0 ? (
                       student.events.map((e, idx) => (
-                        <span 
+                        <button 
                           key={idx} 
-                          className="px-2 py-0.5 bg-slate-50 text-slate-800 border border-slate-200 rounded-md text-[0.65rem] font-bold flex items-center gap-1 shadow-2xs"
+                          onClick={() => setPrintSportTitle(e)}
+                          className="px-2 py-0.5 bg-slate-50 hover:bg-blue-50 text-slate-800 hover:text-blue-700 border border-slate-200 rounded-md text-[0.65rem] font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                          title={`Print roster for ${e}`}
                         >
                           <span className="text-[0.6rem]">🏅</span>
                           <span>{e}</span>
-                        </span>
+                        </button>
                       ))
                     ) : (
                       <span className="text-[0.65rem] italic text-slate-400">No events selected</span>
@@ -401,12 +403,15 @@ export default function StudentRegistrationsTab() {
                         <div className="flex flex-wrap gap-1 max-w-sm">
                           {student.events && student.events.length > 0 ? (
                             student.events.map((e, idx) => (
-                              <span 
+                              <button 
                                 key={idx} 
-                                className="px-1.5 py-0.5 bg-slate-100 text-slate-800 border border-slate-200/80 rounded-md text-[0.65rem] font-bold whitespace-nowrap"
+                                onClick={() => setPrintSportTitle(e)}
+                                className="px-1.5 py-0.5 bg-slate-100 hover:bg-blue-100 hover:text-blue-700 text-slate-800 border border-slate-200/80 rounded-md text-[0.65rem] font-bold whitespace-nowrap cursor-pointer transition-colors flex items-center gap-1 group"
+                                title={`Click to print official roster for ${e}`}
                               >
-                                {e}
-                              </span>
+                                <span>{e}</span>
+                                <Printer size={9} className="opacity-0 group-hover:opacity-100 transition-opacity text-blue-600" />
+                              </button>
                             ))
                           ) : (
                             <span className="text-slate-400 italic text-[0.65rem]">None</span>
@@ -414,7 +419,16 @@ export default function StudentRegistrationsTab() {
                         </div>
                       </td>
 
-                      <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                      <td className="py-2.5 px-3 text-right whitespace-nowrap space-x-1">
+                        {student.events && student.events.length > 0 && (
+                          <button
+                            onClick={() => setPrintSportTitle(student.events[0])}
+                            className="text-slate-400 hover:text-blue-600 p-1.5 rounded-lg hover:bg-blue-50 transition-colors cursor-pointer"
+                            title={`Print Roster for ${student.events[0]}`}
+                          >
+                            <Printer size={14} />
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             if (window.confirm(`Delete registration for ${student.name} (${student.rollNo})?`)) {

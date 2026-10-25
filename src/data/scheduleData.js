@@ -41,8 +41,24 @@ export const scheduleData = {
       time: '11:30 AM',
       title: 'Volleyball Semi-Finals (Boys & Girls)',
       location: 'Court 1 & Court 2',
-      status: 'upcoming',
-      statusLabel: 'Upcoming'
+      status: 'live',
+      statusLabel: 'LIVE NOW',
+      score: {
+        set1: '25 - 21',
+        set2: '19 - 25',
+        set3: '14 - 10',
+        type: 'sets',
+        teamA: 'CSE',
+        teamB: 'ME',
+        scoreA: 'Set 1: 25 - 21',
+        scoreB: 'Set 2: 19 - 25',
+        status: 'live',
+        summary: 'Set 3 In Progress',
+        updatedAt: '16:56',
+        statusLabel: 'LIVE NOW',
+        statusNotes: 'Serving: CSE',
+        currentServer: 'CSE'
+      }
     },
     {
       time: '03:00 PM',
@@ -155,11 +171,11 @@ export const dignitariesData = {
   ],
   tier3: [
     {
-      name: 'Student Sports Secretary',
+      name: 'Swagat Ranjan Choudhury',
       role: 'Sports Secretary',
-      dept: 'Student Head, AWAHAAN 2026',
-      image: '/assets/images/sports_secretary_action_1786977259887.png',
-      quote: 'Leading the student athletic community of GCEK! Let us unite for victory and sportsmanship in AWAHAAN 2026.'
+      dept: 'Student Head, AAHWAN 2026',
+      image: 'https://hxspfwjoxxmluhwqbsva.supabase.co/storage/v1/object/public/AWAHAAN/dignitaries/1788934187783-pn536un.jpg',
+      quote: 'Leading the student athletic community of GCEK! Let us unite for victory and sportsmanship in AAHWAN 2026.'
     },
     {
       name: 'Student Coordinators & Conveners',

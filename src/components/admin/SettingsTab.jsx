@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   Save, CheckCircle, Sliders, Globe, Phone, Mail, 
-  Trophy, Users, Calendar, Layers, MapPin, Sparkles, Building2 
+  Trophy, Users, Calendar, Layers, MapPin, Sparkles, Building2,
+  Cloud, RefreshCw, AlertCircle
 } from 'lucide-react';
 
 export default function SettingsTab() {
@@ -16,15 +17,39 @@ export default function SettingsTab() {
     statSportsCount, setStatSportsCount,
     statAthletesCount, setStatAthletesCount,
     statStreamsCount, setStatStreamsCount,
-    statDaysCount, setStatDaysCount
+    statDaysCount, setStatDaysCount,
+    saveToCloud, cloudSyncStatus, lastSyncedTime
   } = useApp();
 
-  const [savedMsg, setSavedMsg] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [feedback, setFeedback] = useState(null); // { type: 'success' | 'error', text: string }
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
-    setSavedMsg('Settings & public counters saved successfully!');
-    setTimeout(() => setSavedMsg(''), 3000);
+    setIsSaving(true);
+    setFeedback(null);
+
+    const res = await saveToCloud({
+      festivalName,
+      year,
+      collegeName,
+      collegeLocation,
+      helplinePhone,
+      helplineEmail,
+      statSportsCount,
+      statAthletesCount,
+      statStreamsCount,
+      statDaysCount
+    });
+
+    setIsSaving(false);
+
+    if (res.success) {
+      setFeedback({ type: 'success', text: 'Saved & synced to Supabase Cloud!' });
+    } else {
+      setFeedback({ type: 'error', text: `Saved locally! (Cloud notice: ${res.error || 'Check network'})` });
+    }
+    setTimeout(() => setFeedback(null), 4000);
   };
 
   return (
@@ -41,9 +66,18 @@ export default function SettingsTab() {
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-sm font-black text-slate-900 tracking-tight">System & Platform Branding</h3>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[0.65rem] font-black">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  Live Synced
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.65rem] font-black border ${
+                  cloudSyncStatus === 'synced'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                    : cloudSyncStatus === 'syncing'
+                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                    : 'bg-amber-50 text-amber-700 border-amber-200'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    cloudSyncStatus === 'synced' ? 'bg-emerald-500 animate-pulse' : cloudSyncStatus === 'syncing' ? 'bg-blue-500 animate-spin' : 'bg-amber-500'
+                  }`} />
+                  {cloudSyncStatus === 'synced' ? 'Supabase Synced' : cloudSyncStatus === 'syncing' ? 'Syncing...' : 'Local Active'}
+                  {lastSyncedTime && <span className="opacity-75 font-normal">({lastSyncedTime})</span>}
                 </span>
               </div>
               <p className="text-[0.68rem] text-slate-500 font-semibold truncate">
@@ -53,18 +87,33 @@ export default function SettingsTab() {
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-center">
-            {savedMsg && (
-              <span className="text-[0.68rem] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-xl animate-in fade-in flex items-center gap-1">
-                <CheckCircle size={12} /> {savedMsg}
+            {feedback && (
+              <span className={`text-[0.68rem] font-bold px-2.5 py-1 rounded-xl animate-in fade-in flex items-center gap-1 ${
+                feedback.type === 'success'
+                  ? 'text-emerald-600 bg-emerald-50 border border-emerald-200'
+                  : 'text-amber-600 bg-amber-50 border border-amber-200'
+              }`}>
+                {feedback.type === 'success' ? <CheckCircle size={12} /> : <AlertCircle size={12} />}
+                {feedback.text}
               </span>
             )}
 
             <button
               type="submit"
-              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              disabled={isSaving}
+              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              <Save size={13} />
-              <span>Save Changes</span>
+              {isSaving ? (
+                <>
+                  <RefreshCw size={13} className="animate-spin" />
+                  <span>Syncing...</span>
+                </>
+              ) : (
+                <>
+                  <Save size={13} />
+                  <span>Save Changes</span>
+                </>
+              )}
             </button>
           </div>
 

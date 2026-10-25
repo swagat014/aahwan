@@ -2,9 +2,23 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Crown, Shield, Star, Users } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { dignitariesData as defaultDignitaries } from '../data/scheduleData';
 
 export default function Dignitaries() {
   const { dignitaries, collegeLocation } = useApp();
+
+  // Robust multi-key resolution with default fallback so officers are NEVER blank
+  const tier1 = (dignitaries?.tier1?.length ? dignitaries.tier1 : null) || 
+                (dignitaries?.leadership?.length ? dignitaries.leadership : null) || 
+                defaultDignitaries.tier1 || [];
+
+  const tier2 = (dignitaries?.tier2?.length ? dignitaries.tier2 : null) || 
+                (dignitaries?.patrons?.length ? dignitaries.patrons : null) || 
+                defaultDignitaries.tier2 || [];
+
+  const tier3 = (dignitaries?.tier3?.length ? dignitaries.tier3 : null) || 
+                (dignitaries?.coordinators?.length ? dignitaries.coordinators : null) || 
+                defaultDignitaries.tier3 || [];
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -45,7 +59,7 @@ export default function Dignitaries() {
         </motion.div>
 
         {/* TIER 1: Executive Patronage (Principal & DSW) */}
-        {dignitaries.tier1 && dignitaries.tier1.length > 0 && (
+        {tier1.length > 0 && (
           <div className="mb-12 sm:mb-16">
             <div className="flex items-center justify-center gap-3 mb-6 sm:mb-8">
               <div className="h-[2px] w-8 sm:w-12 bg-amber-400 rounded-full" />
@@ -62,7 +76,7 @@ export default function Dignitaries() {
               viewport={{ once: true, margin: '-80px' }}
               className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 max-w-3xl mx-auto"
             >
-              {dignitaries.tier1.map((leader, idx) => (
+              {tier1.map((leader, idx) => (
                 <motion.div
                   key={idx}
                   variants={cardVariants}
@@ -74,8 +88,9 @@ export default function Dignitaries() {
                   {/* Compact Avatar */}
                   <div className="relative w-24 h-24 sm:w-28 sm:h-28 mb-3.5 rounded-full p-1.5 bg-gradient-to-tr from-amber-500 via-blue-600 to-emerald-500 shadow-md group-hover:scale-105 transition-transform duration-300">
                     <img
-                      src={leader.image}
+                      src={leader.image || '/assets/images/gcek_principal_vp_1786977233454.png'}
                       alt={leader.name}
+                      onError={(e) => { e.currentTarget.src = '/assets/images/gcek_principal_vp_1786977233454.png'; }}
                       className="w-full h-full rounded-full object-cover border-2 border-white"
                     />
                   </div>
@@ -97,7 +112,7 @@ export default function Dignitaries() {
         )}
 
         {/* TIER 2: Faculty Leadership (VP Sports & Faculty Coordinators) */}
-        {dignitaries.tier2 && dignitaries.tier2.length > 0 && (
+        {tier2.length > 0 && (
           <div className="mb-12 sm:mb-16">
             <div className="flex items-center justify-center gap-3 mb-6 sm:mb-8">
               <div className="h-[2px] w-8 sm:w-12 bg-blue-500 rounded-full" />
@@ -114,7 +129,7 @@ export default function Dignitaries() {
               viewport={{ once: true, margin: '-80px' }}
               className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 max-w-3xl mx-auto"
             >
-              {dignitaries.tier2.map((leader, idx) => (
+              {tier2.map((leader, idx) => (
                 <motion.div
                   key={idx}
                   variants={cardVariants}
@@ -123,8 +138,9 @@ export default function Dignitaries() {
                 >
                   <div className="relative w-20 h-20 sm:w-24 sm:h-24 mb-3 rounded-full p-1 bg-gradient-to-tr from-blue-600 to-indigo-600 shadow-md group-hover:scale-105 transition-transform duration-300">
                     <img
-                      src={leader.image}
+                      src={leader.image || '/assets/images/gcek_principal_vp_1786977233454.png'}
                       alt={leader.name}
+                      onError={(e) => { e.currentTarget.src = '/assets/images/gcek_principal_vp_1786977233454.png'; }}
                       className="w-full h-full rounded-full object-cover border-2 border-white"
                     />
                   </div>
@@ -146,7 +162,7 @@ export default function Dignitaries() {
         )}
 
         {/* TIER 3: Student Leadership (Sports Secretary & Student Coordinators) */}
-        {dignitaries.tier3 && dignitaries.tier3.length > 0 && (
+        {tier3.length > 0 && (
           <div>
             <div className="flex items-center justify-center gap-3 mb-6 sm:mb-8">
               <div className="h-[2px] w-8 sm:w-12 bg-emerald-500 rounded-full" />
@@ -163,7 +179,7 @@ export default function Dignitaries() {
               viewport={{ once: true, margin: '-80px' }}
               className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 max-w-3xl mx-auto"
             >
-              {dignitaries.tier3.map((leader, idx) => (
+              {tier3.map((leader, idx) => (
                 <motion.div
                   key={idx}
                   variants={cardVariants}
@@ -172,8 +188,9 @@ export default function Dignitaries() {
                 >
                   <div className="relative w-20 h-20 sm:w-24 sm:h-24 mb-3 rounded-full p-1 bg-gradient-to-tr from-emerald-500 to-teal-600 shadow-md group-hover:scale-105 transition-transform duration-300">
                     <img
-                      src={leader.image}
+                      src={leader.image || '/assets/images/sports_secretary_action_1786977259887.png'}
                       alt={leader.name}
+                      onError={(e) => { e.currentTarget.src = '/assets/images/sports_secretary_action_1786977259887.png'; }}
                       className="w-full h-full rounded-full object-cover border-2 border-white"
                     />
                   </div>

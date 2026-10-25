@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://hxspfwjoxxmluhwqbsva.supabase.co';
-export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://ioyvfigbxyoexyqcaxsj.supabase.co';
+export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_VXdQvGohOt5M85ThH8-92A_UPo8escf';
 
 // Create client only if valid key exists
 export const supabase = (SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('placeholder'))

@@ -26,8 +26,10 @@ import {
   RotateCcw, 
   Crown,
   Table,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Printer
 } from 'lucide-react';
+import PrintableRosterModal from './PrintableRosterModal';
 
 export default function ScheduleLeaderboardTab() {
   const {
@@ -57,6 +59,7 @@ export default function ScheduleLeaderboardTab() {
 
   // Standings Tab State
   const [selectedScoreDay, setSelectedScoreDay] = useState('overall'); // 'overall' | 1 | 2 | 3
+  const [printSportTitle, setPrintSportTitle] = useState(null);
 
   // Winners Assignment Filter State
   const [winnerDayFilter, setWinnerDayFilter] = useState('all'); // 'all' | 1 | 2 | 3
@@ -574,6 +577,15 @@ export default function ScheduleLeaderboardTab() {
                   Day {dayNum}
                 </button>
               ))}
+
+              <button
+                onClick={() => setPrintSportTitle('ALL_ATHLETICS')}
+                className="px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white rounded-lg text-xs font-black flex items-center gap-1.5 shadow-xs transition cursor-pointer ml-auto"
+                title="Print Official Master Athletics Participation Roster & Results"
+              >
+                <Printer size={13} />
+                <span>Print Athletics Roster</span>
+              </button>
             </div>
           </div>
 
@@ -694,8 +706,16 @@ export default function ScheduleLeaderboardTab() {
                             )}
                           </td>
 
-                          {/* Day Schedule Tag */}
-                          <td className="py-2 px-3.5 text-right">
+                          {/* Day Schedule Tag & Print Action */}
+                          <td className="py-2 px-3.5 text-right whitespace-nowrap space-x-1.5">
+                            <button
+                              onClick={() => setPrintSportTitle(sport.title)}
+                              className="px-2 py-0.8 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 rounded-lg text-[0.62rem] font-bold inline-flex items-center gap-1 transition cursor-pointer"
+                              title={`Print Official Results & Roster for ${sport.title}`}
+                            >
+                              <Printer size={11} className="text-amber-600" />
+                              <span>Results Roster</span>
+                            </button>
                             <span className="px-2 py-0.5 rounded-md text-[0.65rem] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
                               Day {currentWinner.day || 1}
                             </span>
@@ -1138,6 +1158,14 @@ export default function ScheduleLeaderboardTab() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Official Printable Roster & Results Modal */}
+      {printSportTitle && (
+        <PrintableRosterModal
+          sportTitle={printSportTitle}
+          onClose={() => setPrintSportTitle(null)}
+        />
       )}
 
     </div>
