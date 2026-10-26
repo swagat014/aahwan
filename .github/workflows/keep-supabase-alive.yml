@@ -13,6 +13,6 @@ jobs:
       - name: Ping Supabase Database & REST API
         run: |
           echo "Sending keep-alive ping to Supabase project..."
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}" "https://hxspfwjoxxmluhwqbsva.supabase.co/rest/v1/" || true)
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -H "apikey: ${{ secrets.VITE_SUPABASE_ANON_KEY }}" "https://ioyvfigbxyoexyqcaxsj.supabase.co/rest/v1/" || true)
           echo "Supabase response status: $STATUS"
           echo "Keep-alive ping successful. Inactivity timer reset."

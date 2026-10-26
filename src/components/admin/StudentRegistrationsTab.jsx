@@ -3,12 +3,13 @@ import { useApp } from '../../context/AppContext';
 import { 
   Users, Trash2, Printer, Search, Filter, CheckCircle, BookOpen, 
   ShieldCheck, Mail, Phone, UserCheck, Calendar, Download, X,
-  User, Sparkles, ChevronRight, GraduationCap
+  User, Sparkles, ChevronRight, GraduationCap, RefreshCw, Database
 } from 'lucide-react';
 import PrintableRosterModal from './PrintableRosterModal';
 
 export default function StudentRegistrationsTab() {
-  const { registrations, deleteRegistration, sports } = useApp();
+  const { registrations, deleteRegistration, sports, refreshCloudData, cloudSyncStatus } = useApp();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSportFilter, setSelectedSportFilter] = useState('all');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('all');
@@ -96,8 +97,24 @@ export default function StudentRegistrationsTab() {
             </div>
           </div>
 
-          {/* Quick Actions (Export & Print) */}
+          {/* Quick Actions (Sync, Export & Print) */}
           <div className="flex items-center gap-1.5 self-end sm:self-center w-full sm:w-auto">
+            <button
+              onClick={async () => {
+                if (refreshCloudData) {
+                  setIsRefreshing(true);
+                  await refreshCloudData();
+                  setTimeout(() => setIsRefreshing(false), 600);
+                }
+              }}
+              disabled={isRefreshing || cloudSyncStatus === 'syncing'}
+              className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Fetch fresh registrations from Supabase Database"
+            >
+              <RefreshCw size={13} className={isRefreshing || cloudSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+              <span>{isRefreshing || cloudSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Cloud'}</span>
+            </button>
+
             <button
               onClick={handleExportCSV}
               disabled={filteredRegistrations.length === 0}

@@ -1,12 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://ioyvfigbxyoexyqcaxsj.supabase.co';
-export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_VXdQvGohOt5M85ThH8-92A_UPo8escf';
+// Sanitize URL: if env var points to the old paused project or is empty, use active ioyvfigbxyoexyqcaxsj
+const rawUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
+export const SUPABASE_URL = (rawUrl && !rawUrl.includes('hxspfwjoxxmluhwqbsva'))
+  ? rawUrl
+  : 'https://ioyvfigbxyoexyqcaxsj.supabase.co';
 
-// Create client only if valid key exists
-export const supabase = (SUPABASE_ANON_KEY && !SUPABASE_ANON_KEY.includes('placeholder'))
-  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-  : null;
+// Sanitize Anon Key: if env var is empty, whitespace, or placeholder, use valid publishable key
+const rawKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
+export const SUPABASE_ANON_KEY = (rawKey && !rawKey.includes('placeholder'))
+  ? rawKey
+  : 'sb_publishable_VXdQvGohOt5M85ThH8-92A_UPo8escf';
+
+// Always instantiate valid Supabase client for all devices
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export const BUCKET_NAME = 'AWAHAAN';
 

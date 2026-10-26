@@ -240,47 +240,18 @@ export function AppProvider({ children }) {
     ];
   });
 
-  // Student Registrations State
+  // Student Registrations State (Loads from cache or empty array, then synchronizes live with Supabase)
   const [registrations, setRegistrations] = useState(() => {
-    const saved = localStorage.getItem('AWAHAAN_registrations');
-    return saved ? JSON.parse(saved) : [
-      {
-        id: 'reg-101',
-        rollNo: '2101105012',
-        name: 'Aakash Mohanty',
-        branch: 'Computer Science & Engg',
-        year: '3rd Year',
-        gender: 'Boys Division',
-        phone: '+91 98765 43210',
-        email: 'aakash.cse@gcek.ac.in',
-        events: ['100m Sprint', '4 x 400m Relay Race', 'Cricket Tournament'],
-        timestamp: '2026-08-17T10:30:00.000Z'
-      },
-      {
-        id: 'reg-102',
-        rollNo: '2201105045',
-        name: 'Priyanka Sahoo',
-        branch: 'Electrical Engineering',
-        year: '2nd Year',
-        gender: 'Girls Division',
-        phone: '+91 91234 56789',
-        email: 'priyanka.ee@gcek.ac.in',
-        events: ['200m Sprint', 'Long Jump', 'Badminton Championship'],
-        timestamp: '2026-08-17T11:15:00.000Z'
-      },
-      {
-        id: 'reg-103',
-        rollNo: '2001105089',
-        name: 'Rohan Kumar Das',
-        branch: 'Mechanical Engineering',
-        year: '4th Year',
-        gender: 'Boys Division',
-        phone: '+91 99887 76655',
-        email: 'rohan.me@gcek.ac.in',
-        events: ['Shot Put Throw', 'Discus Throw', 'Kabaddi League'],
-        timestamp: '2026-08-17T12:00:00.000Z'
+    const saved = localStorage.getItem('aahwan_registrations') || localStorage.getItem('AWAHAAN_registrations');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        console.warn('Failed to parse cached registrations:', e);
       }
-    ];
+    }
+    return [];
   });
 
   // Equipment Inventory & Issue/Return Register State
@@ -362,6 +333,7 @@ export function AppProvider({ children }) {
 
   // Cloud Sync Status Tracking
   const isCloudLoadedRef = useRef(false);
+  const isApplyingCloudUpdateRef = useRef(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState('idle'); // 'idle' | 'syncing' | 'synced' | 'error'
   const [lastSyncedTime, setLastSyncedTime] = useState(null);
 
@@ -370,6 +342,11 @@ export function AppProvider({ children }) {
     if (!supabase) {
       console.warn('Supabase client is not connected.');
       return { success: false, error: 'Supabase client is not configured' };
+    }
+    // Safety Guard: Never write before initial cloud state has been retrieved
+    if (!isCloudLoadedRef.current) {
+      console.warn('Save blocked: initial cloud data still loading.');
+      return { success: false, error: 'Initial database sync in progress' };
     }
     try {
       setCloudSyncStatus('syncing');
@@ -394,7 +371,8 @@ export function AppProvider({ children }) {
         teamPointsRule: customOverrides.teamPointsRule !== undefined ? customOverrides.teamPointsRule : teamPointsRule,
         athleticsPointsRule: customOverrides.athleticsPointsRule !== undefined ? customOverrides.athleticsPointsRule : athleticsPointsRule,
         equipmentList: customOverrides.equipmentList !== undefined ? customOverrides.equipmentList : equipmentList,
-        equipmentLogs: customOverrides.equipmentLogs !== undefined ? customOverrides.equipmentLogs : equipmentLogs
+        equipmentLogs: customOverrides.equipmentLogs !== undefined ? customOverrides.equipmentLogs : equipmentLogs,
+        registrations: customOverrides.registrations !== undefined ? customOverrides.registrations : registrations
       };
 
       const { error } = await supabase.from('site_settings').upsert({
@@ -419,126 +397,138 @@ export function AppProvider({ children }) {
     }
   };
 
-  // Fetch global config & registrations from Supabase Cloud on mount
-  useEffect(() => {
+  // Fetch global config & registrations from Supabase Cloud on mount & on demand
+  const loadCloudConfig = async () => {
     if (!supabase) {
       isCloudLoadedRef.current = true;
       return;
     }
 
-    async function loadCloudConfig() {
-      try {
-        setCloudSyncStatus('syncing');
+    try {
+      setCloudSyncStatus('syncing');
+      isApplyingCloudUpdateRef.current = true;
 
-        // 1. Fetch site_settings (master branding, sports, schedule, dignitaries, rules, inventory)
-        const { data, error } = await supabase
-          .from('site_settings')
-          .select('*')
-          .eq('id', 'global_config')
-          .single();
+      // 1. Fetch site_settings (master branding, sports, schedule, dignitaries, rules, inventory)
+      const { data, error } = await supabase
+        .from('site_settings')
+        .select('*')
+        .eq('id', 'global_config')
+        .single();
 
-        if (!error && data?.config) {
-          const cfg = data.config;
-          if (cfg.year) { setYear(cfg.year); localStorage.setItem('aahwan_year', cfg.year); localStorage.setItem('AWAHAAN_year', cfg.year); }
-          if (cfg.festivalName) { setFestivalName(cfg.festivalName); localStorage.setItem('aahwan_name', cfg.festivalName); localStorage.setItem('AWAHAAN_name', cfg.festivalName); }
-          if (cfg.collegeName) { setCollegeName(cfg.collegeName); localStorage.setItem('aahwan_college', cfg.collegeName); localStorage.setItem('AWAHAAN_college', cfg.collegeName); }
-          if (cfg.collegeLocation) { setCollegeLocation(cfg.collegeLocation); localStorage.setItem('aahwan_location', cfg.collegeLocation); localStorage.setItem('AWAHAAN_location', cfg.collegeLocation); }
-          if (cfg.helplinePhone) { setHelplinePhone(cfg.helplinePhone); localStorage.setItem('aahwan_phone', cfg.helplinePhone); localStorage.setItem('AWAHAAN_phone', cfg.helplinePhone); }
-          if (cfg.helplineEmail) { setHelplineEmail(cfg.helplineEmail); localStorage.setItem('aahwan_email', cfg.helplineEmail); localStorage.setItem('AWAHAAN_email', cfg.helplineEmail); }
-          if (cfg.statSportsCount) { setStatSportsCount(cfg.statSportsCount); localStorage.setItem('aahwan_stat_sports', cfg.statSportsCount); localStorage.setItem('AWAHAAN_stat_sports', cfg.statSportsCount); }
-          if (cfg.statAthletesCount) { setStatAthletesCount(cfg.statAthletesCount); localStorage.setItem('aahwan_stat_athletes', cfg.statAthletesCount); localStorage.setItem('AWAHAAN_stat_athletes', cfg.statAthletesCount); }
-          if (cfg.statStreamsCount) { setStatStreamsCount(cfg.statStreamsCount); localStorage.setItem('aahwan_stat_streams', cfg.statStreamsCount); localStorage.setItem('AWAHAAN_stat_streams', cfg.statStreamsCount); }
-          if (cfg.statDaysCount) { setStatDaysCount(cfg.statDaysCount); localStorage.setItem('aahwan_stat_days', cfg.statDaysCount); localStorage.setItem('AWAHAAN_stat_days', cfg.statDaysCount); }
-          if (cfg.sports && Array.isArray(cfg.sports) && cfg.sports.length > 0) {
-            setSports(cfg.sports);
-            localStorage.setItem('aahwan_sports', JSON.stringify(cfg.sports));
-            localStorage.setItem('AWAHAAN_sports', JSON.stringify(cfg.sports));
-          }
-          if (cfg.dignitaries) {
-            const normalized = normalizeDignitariesStructure(cfg.dignitaries);
-            setDignitaries(normalized);
-            localStorage.setItem('aahwan_dignitaries', JSON.stringify(normalized));
-            localStorage.setItem('AWAHAAN_dignitaries', JSON.stringify(normalized));
-          }
-          if (cfg.schedule) {
-            setSchedule(cfg.schedule);
-            localStorage.setItem('aahwan_schedule', JSON.stringify(cfg.schedule));
-            localStorage.setItem('AWAHAAN_schedule', JSON.stringify(cfg.schedule));
-          }
-          if (cfg.leaderboard) {
-            setLeaderboard(cfg.leaderboard);
-            localStorage.setItem('aahwan_leaderboard', JSON.stringify(cfg.leaderboard));
-            localStorage.setItem('AWAHAAN_leaderboard', JSON.stringify(cfg.leaderboard));
-          }
-          if (cfg.galleryPhotos) {
-            setGalleryPhotos(cfg.galleryPhotos);
-            localStorage.setItem('aahwan_gallery', JSON.stringify(cfg.galleryPhotos));
-            localStorage.setItem('AWAHAAN_gallery', JSON.stringify(cfg.galleryPhotos));
-          }
-          if (cfg.sportWinners) {
-            setSportWinners(cfg.sportWinners);
-            localStorage.setItem('aahwan_sport_winners', JSON.stringify(cfg.sportWinners));
-            localStorage.setItem('AWAHAAN_sport_winners', JSON.stringify(cfg.sportWinners));
-          }
-          if (cfg.dailyMedals) {
-            setDailyMedals(cfg.dailyMedals);
-            localStorage.setItem('aahwan_daily_medals', JSON.stringify(cfg.dailyMedals));
-            localStorage.setItem('AWAHAAN_daily_medals', JSON.stringify(cfg.dailyMedals));
-          }
-          if (cfg.teamPointsRule) {
-            setTeamPointsRule(cfg.teamPointsRule);
-            localStorage.setItem('aahwan_team_points_rule', JSON.stringify(cfg.teamPointsRule));
-            localStorage.setItem('AWAHAAN_team_points_rule', JSON.stringify(cfg.teamPointsRule));
-          }
-          if (cfg.athleticsPointsRule) {
-            setAthleticsPointsRule(cfg.athleticsPointsRule);
-            localStorage.setItem('aahwan_ath_points_rule', JSON.stringify(cfg.athleticsPointsRule));
-            localStorage.setItem('AWAHAAN_ath_points_rule', JSON.stringify(cfg.athleticsPointsRule));
-          }
-          if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
-            setEquipmentList(cfg.equipmentList);
-            localStorage.setItem('aahwan_equipment', JSON.stringify(cfg.equipmentList));
-          }
-          if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
-            setEquipmentLogs(cfg.equipmentLogs);
-            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(cfg.equipmentLogs));
-          }
+      let cloudConfig = null;
+      if (!error && data?.config) {
+        cloudConfig = data.config;
+        const cfg = data.config;
+        if (cfg.year) { setYear(cfg.year); localStorage.setItem('aahwan_year', cfg.year); localStorage.setItem('AWAHAAN_year', cfg.year); }
+        if (cfg.festivalName) { setFestivalName(cfg.festivalName); localStorage.setItem('aahwan_name', cfg.festivalName); localStorage.setItem('AWAHAAN_name', cfg.festivalName); }
+        if (cfg.collegeName) { setCollegeName(cfg.collegeName); localStorage.setItem('aahwan_college', cfg.collegeName); localStorage.setItem('AWAHAAN_college', cfg.collegeName); }
+        if (cfg.collegeLocation) { setCollegeLocation(cfg.collegeLocation); localStorage.setItem('aahwan_location', cfg.collegeLocation); localStorage.setItem('AWAHAAN_location', cfg.collegeLocation); }
+        if (cfg.helplinePhone) { setHelplinePhone(cfg.helplinePhone); localStorage.setItem('aahwan_phone', cfg.helplinePhone); localStorage.setItem('AWAHAAN_phone', cfg.helplinePhone); }
+        if (cfg.helplineEmail) { setHelplineEmail(cfg.helplineEmail); localStorage.setItem('aahwan_email', cfg.helplineEmail); localStorage.setItem('AWAHAAN_email', cfg.helplineEmail); }
+        if (cfg.statSportsCount) { setStatSportsCount(cfg.statSportsCount); localStorage.setItem('aahwan_stat_sports', cfg.statSportsCount); localStorage.setItem('AWAHAAN_stat_sports', cfg.statSportsCount); }
+        if (cfg.statAthletesCount) { setStatAthletesCount(cfg.statAthletesCount); localStorage.setItem('aahwan_stat_athletes', cfg.statAthletesCount); localStorage.setItem('AWAHAAN_stat_athletes', cfg.statAthletesCount); }
+        if (cfg.statStreamsCount) { setStatStreamsCount(cfg.statStreamsCount); localStorage.setItem('aahwan_stat_streams', cfg.statStreamsCount); localStorage.setItem('AWAHAAN_stat_streams', cfg.statStreamsCount); }
+        if (cfg.statDaysCount) { setStatDaysCount(cfg.statDaysCount); localStorage.setItem('aahwan_stat_days', cfg.statDaysCount); localStorage.setItem('AWAHAAN_stat_days', cfg.statDaysCount); }
+        if (cfg.sports && Array.isArray(cfg.sports) && cfg.sports.length > 0) {
+          setSports(cfg.sports);
+          localStorage.setItem('aahwan_sports', JSON.stringify(cfg.sports));
+          localStorage.setItem('AWAHAAN_sports', JSON.stringify(cfg.sports));
         }
-
-        // 2. Fetch student registrations from Supabase registrations table
-        const { data: cloudRegs, error: regError } = await supabase
-          .from('registrations')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (!regError && cloudRegs && cloudRegs.length > 0) {
-          const mapped = cloudRegs.map(r => ({
-            id: r.id,
-            rollNo: r.roll_no,
-            name: r.name,
-            branch: r.branch,
-            year: r.year,
-            gender: r.gender,
-            phone: r.phone,
-            email: r.email,
-            events: Array.isArray(r.events) ? r.events : (typeof r.events === 'string' ? JSON.parse(r.events) : []),
-            timestamp: r.created_at
-          }));
-          setRegistrations(mapped);
-          localStorage.setItem('aahwan_registrations', JSON.stringify(mapped));
-          localStorage.setItem('AWAHAAN_registrations', JSON.stringify(mapped));
+        if (cfg.dignitaries) {
+          const normalized = normalizeDignitariesStructure(cfg.dignitaries);
+          setDignitaries(normalized);
+          localStorage.setItem('aahwan_dignitaries', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_dignitaries', JSON.stringify(normalized));
         }
-
-        setCloudSyncStatus('synced');
-        setLastSyncedTime(new Date().toLocaleTimeString());
-      } catch (err) {
-        console.warn('Cloud config load bypassed:', err);
-        setCloudSyncStatus('error');
-      } finally {
-        isCloudLoadedRef.current = true;
+        if (cfg.schedule) {
+          setSchedule(cfg.schedule);
+          localStorage.setItem('aahwan_schedule', JSON.stringify(cfg.schedule));
+          localStorage.setItem('AWAHAAN_schedule', JSON.stringify(cfg.schedule));
+        }
+        if (cfg.leaderboard) {
+          setLeaderboard(cfg.leaderboard);
+          localStorage.setItem('aahwan_leaderboard', JSON.stringify(cfg.leaderboard));
+          localStorage.setItem('AWAHAAN_leaderboard', JSON.stringify(cfg.leaderboard));
+        }
+        if (cfg.galleryPhotos) {
+          setGalleryPhotos(cfg.galleryPhotos);
+          localStorage.setItem('aahwan_gallery', JSON.stringify(cfg.galleryPhotos));
+          localStorage.setItem('AWAHAAN_gallery', JSON.stringify(cfg.galleryPhotos));
+        }
+        if (cfg.sportWinners) {
+          setSportWinners(cfg.sportWinners);
+          localStorage.setItem('aahwan_sport_winners', JSON.stringify(cfg.sportWinners));
+          localStorage.setItem('AWAHAAN_sport_winners', JSON.stringify(cfg.sportWinners));
+        }
+        if (cfg.dailyMedals) {
+          setDailyMedals(cfg.dailyMedals);
+          localStorage.setItem('aahwan_daily_medals', JSON.stringify(cfg.dailyMedals));
+          localStorage.setItem('AWAHAAN_daily_medals', JSON.stringify(cfg.dailyMedals));
+        }
+        if (cfg.teamPointsRule) {
+          setTeamPointsRule(cfg.teamPointsRule);
+          localStorage.setItem('aahwan_team_points_rule', JSON.stringify(cfg.teamPointsRule));
+          localStorage.setItem('AWAHAAN_team_points_rule', JSON.stringify(cfg.teamPointsRule));
+        }
+        if (cfg.athleticsPointsRule) {
+          setAthleticsPointsRule(cfg.athleticsPointsRule);
+          localStorage.setItem('aahwan_ath_points_rule', JSON.stringify(cfg.athleticsPointsRule));
+          localStorage.setItem('AWAHAAN_ath_points_rule', JSON.stringify(cfg.athleticsPointsRule));
+        }
+        if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
+          setEquipmentList(cfg.equipmentList);
+          localStorage.setItem('aahwan_equipment', JSON.stringify(cfg.equipmentList));
+        }
+        if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
+          setEquipmentLogs(cfg.equipmentLogs);
+          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(cfg.equipmentLogs));
+        }
       }
-    }
 
+      // 2. Fetch student registrations from Supabase registrations table
+      const { data: cloudRegs, error: regError } = await supabase
+        .from('registrations')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!regError && cloudRegs) {
+        const mapped = cloudRegs.map(r => ({
+          id: r.id,
+          rollNo: r.roll_no,
+          name: r.name,
+          branch: r.branch,
+          year: r.year,
+          gender: r.gender,
+          phone: r.phone,
+          email: r.email || '',
+          events: Array.isArray(r.events) ? r.events : (typeof r.events === 'string' ? JSON.parse(r.events) : []),
+          timestamp: r.created_at
+        }));
+        setRegistrations(mapped);
+        localStorage.setItem('aahwan_registrations', JSON.stringify(mapped));
+        localStorage.setItem('AWAHAAN_registrations', JSON.stringify(mapped));
+      } else if (cloudConfig?.registrations && Array.isArray(cloudConfig.registrations)) {
+        // Fallback to site_settings config registrations
+        setRegistrations(cloudConfig.registrations);
+        localStorage.setItem('aahwan_registrations', JSON.stringify(cloudConfig.registrations));
+        localStorage.setItem('AWAHAAN_registrations', JSON.stringify(cloudConfig.registrations));
+      }
+
+      setCloudSyncStatus('synced');
+      setLastSyncedTime(new Date().toLocaleTimeString());
+    } catch (err) {
+      console.warn('Cloud config load bypassed:', err);
+      setCloudSyncStatus('error');
+    } finally {
+      isCloudLoadedRef.current = true;
+      setTimeout(() => {
+        isApplyingCloudUpdateRef.current = false;
+      }, 100);
+    }
+  };
+
+  // Mount Effect: load cloud data and establish realtime listeners
+  useEffect(() => {
     loadCloudConfig();
 
     // Subscribe to Realtime Cloud changes on site_settings
@@ -546,6 +536,7 @@ export function AppProvider({ children }) {
       .channel('public:site_settings')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'site_settings' }, (payload) => {
         if (payload.new && payload.new.config) {
+          isApplyingCloudUpdateRef.current = true;
           const cfg = payload.new.config;
           if (cfg.festivalName) {
             setFestivalName(cfg.festivalName);
@@ -590,15 +581,18 @@ export function AppProvider({ children }) {
           if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) setEquipmentList(cfg.equipmentList);
           if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) setEquipmentLogs(cfg.equipmentLogs);
           setLastSyncedTime(new Date().toLocaleTimeString());
+          setTimeout(() => {
+            isApplyingCloudUpdateRef.current = false;
+          }, 100);
         }
       })
       .subscribe();
 
-    // Subscribe to Realtime Cloud changes on registrations (instantly displays new students in Admin Panel)
+    // Subscribe to Realtime Cloud changes on registrations (instantly displays new students in Admin Panel on all devices)
     const registrationsChannel = supabase
       .channel('public:registrations')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, (payload) => {
-        if (payload.eventType === 'INSERT' && payload.new) {
+        if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new) {
           const r = payload.new;
           const incoming = {
             id: r.id,
@@ -608,15 +602,13 @@ export function AppProvider({ children }) {
             year: r.year,
             gender: r.gender,
             phone: r.phone,
-            email: r.email,
+            email: r.email || '',
             events: Array.isArray(r.events) ? r.events : (typeof r.events === 'string' ? JSON.parse(r.events) : []),
             timestamp: r.created_at
           };
           setRegistrations(prev => {
-            if (prev.some(x => x.id === incoming.id || (x.rollNo === incoming.rollNo && x.name === incoming.name))) {
-              return prev;
-            }
-            const updated = [incoming, ...prev];
+            const filtered = prev.filter(x => x.id !== incoming.id);
+            const updated = [incoming, ...filtered];
             localStorage.setItem('aahwan_registrations', JSON.stringify(updated));
             localStorage.setItem('AWAHAAN_registrations', JSON.stringify(updated));
             return updated;
@@ -632,9 +624,20 @@ export function AppProvider({ children }) {
       })
       .subscribe();
 
+    // Automatic Sync on Tab Visibility Change / Window Focus (Keeps mobile and tabs always up to date)
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        loadCloudConfig();
+      }
+    };
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
     return () => {
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(registrationsChannel);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
   }, []);
 
@@ -706,12 +709,18 @@ export function AppProvider({ children }) {
     // Guard: Never overwrite Cloud on initial mount before cloud data has been loaded
     if (!isCloudLoadedRef.current || !supabase || !isAdminLoggedIn) return;
 
+    // Guard: Never echo back changes that were applied from incoming Cloud updates
+    if (isApplyingCloudUpdateRef.current) {
+      isApplyingCloudUpdateRef.current = false;
+      return;
+    }
+
     const timer = setTimeout(() => {
       saveToCloud();
-    }, 1200);
+    }, 1500);
 
     return () => clearTimeout(timer);
-  }, [year, festivalName, collegeName, collegeLocation, helplinePhone, helplineEmail, statSportsCount, statAthletesCount, statStreamsCount, statDaysCount, teamPointsRule, athleticsPointsRule, sportWinners, dailyMedals, dignitaries, sports, schedule, leaderboard, galleryPhotos, equipmentList, equipmentLogs, registrations, isAdminLoggedIn]);
+  }, [year, festivalName, collegeName, collegeLocation, helplinePhone, helplineEmail, statSportsCount, statAthletesCount, statStreamsCount, statDaysCount, teamPointsRule, athleticsPointsRule, sportWinners, dailyMedals, dignitaries, sports, schedule, leaderboard, galleryPhotos, equipmentList, equipmentLogs]);
 
   // Winner Assignments & Dynamic Auto-Calculation Engine for Standings
   const assignSportWinner = (sportId, winnerData) => {
@@ -910,6 +919,10 @@ export function AppProvider({ children }) {
         localStorage.setItem('AWAHAAN_admin_session', 'true');
         localStorage.setItem('aahwan_view_mode', 'admin-dashboard');
         setViewMode('admin-dashboard');
+
+        // Immediately fetch freshest data from Supabase so this device is 100% in sync
+        loadCloudConfig();
+
         return { success: true };
       }
 
@@ -934,44 +947,71 @@ export function AppProvider({ children }) {
   };
 
   // Student Registration Handlers (Persisted to both Supabase Cloud DB and LocalStorage)
-  const addRegistration = (studentData) => {
+  const addRegistration = async (studentData) => {
+    const regId = studentData.id || `reg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const rollNo = (studentData.rollNo || '').trim().toUpperCase();
+    const name = (studentData.name || '').trim();
+    const branch = studentData.branch || 'General';
+    const yearVal = studentData.year || '1st Year';
+    const gender = studentData.gender || 'Boys Division';
+    const phone = (studentData.phone || '').trim();
+    // Safety: Ensure email is never null or undefined to satisfy PostgreSQL NOT NULL constraint
+    const email = (studentData.email || '').trim() || `${(rollNo || 'athlete').toLowerCase()}@gcekbpatna.ac.in`;
+    const events = Array.isArray(studentData.events) ? studentData.events : [];
+    const timestamp = studentData.timestamp || new Date().toISOString();
+
     const newReg = {
-      ...studentData,
-      id: `reg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      timestamp: new Date().toISOString()
+      id: regId,
+      rollNo,
+      name,
+      branch,
+      year: yearVal,
+      gender,
+      phone,
+      email,
+      events,
+      timestamp
     };
 
+    // 1. Optimistically update local state & localStorage
     setRegistrations(prev => {
-      const updated = [newReg, ...prev];
+      const filtered = prev.filter(r => r.id !== regId && !(r.rollNo === rollNo && r.name === name));
+      const updated = [newReg, ...filtered];
       localStorage.setItem('aahwan_registrations', JSON.stringify(updated));
       localStorage.setItem('AWAHAAN_registrations', JSON.stringify(updated));
       return updated;
     });
 
-    // Instant cloud insert accessible to public student applicants without admin session
+    // 2. Guaranteed cloud insert accessible to public student applicants without admin session
     if (supabase) {
-      supabase.from('registrations').insert({
-        id: newReg.id,
-        roll_no: newReg.rollNo,
-        name: newReg.name,
-        branch: newReg.branch,
-        year: newReg.year,
-        gender: newReg.gender,
-        phone: newReg.phone,
-        email: newReg.email,
-        events: newReg.events || [],
-        created_at: newReg.timestamp
-      }).then(({ error }) => {
-        if (error) console.warn('Supabase registration insert notice:', error.message);
-      }).catch(err => {
-        console.warn('Supabase registration insert exception:', err);
-      });
+      try {
+        const { error } = await supabase.from('registrations').upsert({
+          id: regId,
+          roll_no: rollNo,
+          name,
+          branch,
+          year: yearVal,
+          gender,
+          phone,
+          email,
+          events,
+          created_at: timestamp
+        });
+
+        if (error) {
+          console.error('Supabase registration insert error:', error.message);
+        } else {
+          console.log('✅ Registration successfully saved to Supabase Cloud DB:', regId);
+        }
+      } catch (err) {
+        console.error('Supabase registration insert exception:', err);
+      }
     }
 
     return newReg;
   };
 
-  const deleteRegistration = (studentId) => {
+  const deleteRegistration = async (studentId) => {
     setRegistrations(prev => {
       const updated = prev.filter(r => r.id !== studentId);
       localStorage.setItem('aahwan_registrations', JSON.stringify(updated));
@@ -980,11 +1020,12 @@ export function AppProvider({ children }) {
     });
 
     if (supabase) {
-      supabase.from('registrations').delete().eq('id', studentId).then(({ error }) => {
+      try {
+        const { error } = await supabase.from('registrations').delete().eq('id', studentId);
         if (error) console.warn('Supabase delete registration notice:', error.message);
-      }).catch(err => {
+      } catch (err) {
         console.warn('Supabase delete registration exception:', err);
-      });
+      }
     }
   };
 
@@ -1178,6 +1219,8 @@ export function AppProvider({ children }) {
       loginAdmin, logoutAdmin,
       handlePhotoUpload,
       saveToCloud,
+      loadCloudConfig,
+      refreshCloudData: loadCloudConfig,
       cloudSyncStatus,
       lastSyncedTime
     }}>

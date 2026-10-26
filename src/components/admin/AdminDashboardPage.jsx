@@ -23,7 +23,8 @@ import {
   Building2,
   ExternalLink,
   Layers,
-  ArrowRight
+  ArrowRight,
+  RefreshCw
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import AdminOverviewTab from './AdminOverviewTab';
@@ -50,8 +51,12 @@ export default function AdminDashboardPage() {
     galleryPhotos, 
     schedule, 
     equipmentList, 
-    equipmentLogs
+    equipmentLogs,
+    refreshCloudData,
+    cloudSyncStatus,
+    lastSyncedTime
   } = useApp();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const [activeTab, setActiveTab] = useState('overview');
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
@@ -205,6 +210,20 @@ export default function AdminDashboardPage() {
 
         <div className="flex items-center gap-1.5 shrink-0">
           <button
+            onClick={async () => {
+              if (refreshCloudData) {
+                setIsRefreshing(true);
+                await refreshCloudData();
+                setTimeout(() => setIsRefreshing(false), 600);
+              }
+            }}
+            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700 flex items-center justify-center cursor-pointer"
+            title="Refresh data from Supabase Cloud"
+          >
+            <RefreshCw size={12} className={isRefreshing || cloudSyncStatus === 'syncing' ? 'animate-spin text-blue-400' : 'text-emerald-400'} />
+          </button>
+
+          <button
             onClick={() => setViewMode('public')}
             className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white rounded-xl text-[0.68rem] font-bold border border-slate-700 flex items-center gap-1 transition cursor-pointer"
             title="Switch to public site view"
@@ -259,10 +278,21 @@ export default function AdminDashboardPage() {
           </div>
 
           <div className="flex items-center gap-2.5">
-            <div className="hidden xl:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-[0.68rem] font-bold text-slate-600">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span>Realtime Cloud Synced</span>
-            </div>
+            <button
+              onClick={async () => {
+                if (refreshCloudData) {
+                  setIsRefreshing(true);
+                  await refreshCloudData();
+                  setTimeout(() => setIsRefreshing(false), 600);
+                }
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-[0.68rem] font-bold text-slate-700 transition cursor-pointer"
+              title="Click to force fresh sync from Supabase Cloud Database"
+            >
+              <RefreshCw size={11} className={isRefreshing || cloudSyncStatus === 'syncing' ? 'animate-spin text-blue-600' : 'text-emerald-600'} />
+              <span>{isRefreshing || cloudSyncStatus === 'syncing' ? 'Syncing...' : 'Supabase Synced'}</span>
+              {lastSyncedTime && <span className="text-slate-400 font-normal">({lastSyncedTime})</span>}
+            </button>
 
             <button
               onClick={() => setViewMode('public')}

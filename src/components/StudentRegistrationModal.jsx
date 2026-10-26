@@ -29,6 +29,7 @@ export default function StudentRegistrationModal() {
   });
 
   const [submittedReg, setSubmittedReg] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!showStudentRegistration) return null;
 
@@ -106,7 +107,7 @@ export default function StudentRegistrationModal() {
     });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const cleanName = formData.name.trim();
     const cleanRollNo = formData.rollNo.trim().toUpperCase();
@@ -137,13 +138,22 @@ export default function StudentRegistrationModal() {
       return;
     }
 
-    const regToken = addRegistration({
-      ...formData,
-      name: cleanName,
-      rollNo: cleanRollNo,
-      phone: cleanPhone
-    });
-    setSubmittedReg(regToken);
+    setIsSubmitting(true);
+    try {
+      const regToken = await addRegistration({
+        ...formData,
+        name: cleanName,
+        rollNo: cleanRollNo,
+        phone: cleanPhone,
+        email: formData.email.trim() || `${cleanRollNo.toLowerCase()}@gcekbpatna.ac.in`
+      });
+      setSubmittedReg(regToken);
+    } catch (err) {
+      console.error('Registration submission failed:', err);
+      alert('Registration could not be completed. Please check your internet connection and try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleClose = () => {
@@ -461,10 +471,20 @@ export default function StudentRegistrationModal() {
               {/* 6. SUBMIT ACTION BUTTON */}
               <button
                 type="submit"
-                className="w-full py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
+                disabled={isSubmitting}
+                className="w-full py-2.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-500 text-white font-black text-xs rounded-xl shadow-md shadow-blue-500/25 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-60"
               >
-                <Send size={13} />
-                <span>Submit Athlete Registration</span>
+                {isSubmitting ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Saving to Database...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send size={13} />
+                    <span>Submit Athlete Registration</span>
+                  </>
+                )}
               </button>
 
             </form>
