@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X, Trophy, CheckCircle2, User, BookOpen, Send, Check, 
@@ -30,6 +30,17 @@ export default function StudentRegistrationModal() {
 
   const [submittedReg, setSubmittedReg] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Auto-select initial sport if passed through modal trigger (Hooks MUST run before any early return)
+  useEffect(() => {
+    if (typeof showStudentRegistration === 'string' && showStudentRegistration.trim()) {
+      const sportTitle = showStudentRegistration.trim();
+      setFormData(prev => ({
+        ...prev,
+        events: prev.events.includes(sportTitle) ? prev.events : [sportTitle, ...prev.events]
+      }));
+    }
+  }, [showStudentRegistration]);
 
   if (!showStudentRegistration) return null;
 
@@ -106,17 +117,6 @@ export default function StudentRegistrationModal() {
       }
     });
   };
-
-  // Auto-select initial sport if passed through modal trigger
-  React.useEffect(() => {
-    if (typeof showStudentRegistration === 'string' && showStudentRegistration.trim()) {
-      const sportTitle = showStudentRegistration.trim();
-      setFormData(prev => ({
-        ...prev,
-        events: prev.events.includes(sportTitle) ? prev.events : [sportTitle, ...prev.events]
-      }));
-    }
-  }, [showStudentRegistration]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

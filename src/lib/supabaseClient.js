@@ -1,16 +1,45 @@
 import { createClient } from '@supabase/supabase-js';
 
+export const ACTIVE_PROJECT_URL = 'https://ioyvfigbxyoexyqcaxsj.supabase.co';
+export const ACTIVE_ANON_KEY = 'sb_publishable_VXdQvGohOt5M85ThH8-92A_UPo8escf';
+
+function isValidKeyForActiveProject(key) {
+  if (!key || typeof key !== 'string') return false;
+  const trimmed = key.trim();
+  if (!trimmed || trimmed.includes('placeholder')) return false;
+  // If it's the known valid publishable key:
+  if (trimmed === ACTIVE_ANON_KEY || trimmed.startsWith('sb_publishable_')) return true;
+  // If it's a JWT, check if it belongs to the old paused project hxspfwjoxxmluhwqbsva
+  try {
+    const parts = trimmed.split('.');
+    if (parts.length === 3) {
+      const payloadStr = typeof atob === 'function' 
+        ? atob(parts[1]) 
+        : (typeof Buffer !== 'undefined' ? Buffer.from(parts[1], 'base64').toString() : '');
+      if (payloadStr) {
+        const payload = JSON.parse(payloadStr);
+        if (payload.ref && payload.ref !== 'ioyvfigbxyoexyqcaxsj') {
+          return false; // Mismatched or old project ref
+        }
+      }
+    }
+  } catch (e) {
+    return false;
+  }
+  return true;
+}
+
 // Sanitize URL: if env var points to the old paused project or is empty, use active ioyvfigbxyoexyqcaxsj
 const rawUrl = (import.meta.env.VITE_SUPABASE_URL || '').trim();
 export const SUPABASE_URL = (rawUrl && !rawUrl.includes('hxspfwjoxxmluhwqbsva'))
   ? rawUrl
-  : 'https://ioyvfigbxyoexyqcaxsj.supabase.co';
+  : ACTIVE_PROJECT_URL;
 
-// Sanitize Anon Key: if env var is empty, whitespace, or placeholder, use valid publishable key
+// Sanitize Anon Key: if env var has old project key, whitespace, or placeholder, use active key
 const rawKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || '').trim();
-export const SUPABASE_ANON_KEY = (rawKey && !rawKey.includes('placeholder'))
+export const SUPABASE_ANON_KEY = isValidKeyForActiveProject(rawKey)
   ? rawKey
-  : 'sb_publishable_VXdQvGohOt5M85ThH8-92A_UPo8escf';
+  : ACTIVE_ANON_KEY;
 
 // Always instantiate valid Supabase client for all devices
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
