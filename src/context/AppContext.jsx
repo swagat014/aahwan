@@ -61,6 +61,29 @@ function normalizeDignitariesStructure(parsed) {
   return res;
 }
 
+/**
+ * Robust parsing helper for sport disciplines.
+ * Handles arrays, JSON strings, comma-delimited strings, or single values without crashing.
+ */
+export function safeParseEvents(events) {
+  if (Array.isArray(events)) return events.filter(Boolean);
+  if (!events) return [];
+  if (typeof events === 'string') {
+    const trimmed = events.trim();
+    if (!trimmed) return [];
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed.filter(Boolean);
+      } catch (e) {
+        // Fallback to delimiter split below
+      }
+    }
+    return trimmed.split(',').map(s => s.trim().replace(/^["']|["']$/g, '')).filter(Boolean);
+  }
+  return [];
+}
+
 export function AppProvider({ children }) {
   // Website General Settings State
   const [year, setYear] = useState(() => localStorage.getItem('aahwan_year') || localStorage.getItem('AWAHAAN_year') || '2026');
@@ -491,27 +514,41 @@ export function AppProvider({ children }) {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!regError && cloudRegs) {
-        const mapped = cloudRegs.map(r => ({
+      let parsedCloudRegs = [];
+      if (!regError && Array.isArray(cloudRegs) && cloudRegs.length > 0) {
+        parsedCloudRegs = cloudRegs.map(r => ({
           id: r.id,
-          rollNo: r.roll_no,
-          name: r.name,
-          branch: r.branch,
-          year: r.year,
-          gender: r.gender,
-          phone: r.phone,
+          rollNo: r.roll_no || '',
+          name: r.name || '',
+          branch: r.branch || 'General',
+          year: r.year || '1st Year',
+          gender: r.gender || 'Boys Division',
+          phone: r.phone || '',
           email: r.email || '',
-          events: Array.isArray(r.events) ? r.events : (typeof r.events === 'string' ? JSON.parse(r.events) : []),
-          timestamp: r.created_at
+          events: safeParseEvents(r.events),
+          timestamp: r.created_at || new Date().toISOString()
         }));
-        setRegistrations(mapped);
-        localStorage.setItem('aahwan_registrations', JSON.stringify(mapped));
-        localStorage.setItem('AWAHAAN_registrations', JSON.stringify(mapped));
-      } else if (cloudConfig?.registrations && Array.isArray(cloudConfig.registrations)) {
-        // Fallback to site_settings config registrations
-        setRegistrations(cloudConfig.registrations);
-        localStorage.setItem('aahwan_registrations', JSON.stringify(cloudConfig.registrations));
-        localStorage.setItem('AWAHAAN_registrations', JSON.stringify(cloudConfig.registrations));
+      }
+
+      // Check fallback or merge with site_settings config.registrations
+      let combinedRegs = parsedCloudRegs;
+      if (cloudConfig?.registrations && Array.isArray(cloudConfig.registrations)) {
+        if (parsedCloudRegs.length === 0) {
+          combinedRegs = cloudConfig.registrations;
+        } else {
+          // Merge any backup registrations not yet in relational table
+          const existingIds = new Set(parsedCloudRegs.map(r => r.id));
+          const additions = cloudConfig.registrations.filter(r => r && r.id && !existingIds.has(r.id));
+          if (additions.length > 0) {
+            combinedRegs = [...parsedCloudRegs, ...additions];
+          }
+        }
+      }
+
+      if (combinedRegs.length > 0 || !regError) {
+        setRegistrations(combinedRegs);
+        localStorage.setItem('aahwan_registrations', JSON.stringify(combinedRegs));
+        localStorage.setItem('AWAHAAN_registrations', JSON.stringify(combinedRegs));
       }
 
       setCloudSyncStatus('synced');
@@ -596,15 +633,15 @@ export function AppProvider({ children }) {
           const r = payload.new;
           const incoming = {
             id: r.id,
-            rollNo: r.roll_no,
-            name: r.name,
-            branch: r.branch,
-            year: r.year,
-            gender: r.gender,
-            phone: r.phone,
+            rollNo: r.roll_no || '',
+            name: r.name || '',
+            branch: r.branch || 'General',
+            year: r.year || '1st Year',
+            gender: r.gender || 'Boys Division',
+            phone: r.phone || '',
             email: r.email || '',
-            events: Array.isArray(r.events) ? r.events : (typeof r.events === 'string' ? JSON.parse(r.events) : []),
-            timestamp: r.created_at
+            events: safeParseEvents(r.events),
+            timestamp: r.created_at || new Date().toISOString()
           };
           setRegistrations(prev => {
             const filtered = prev.filter(x => x.id !== incoming.id);
@@ -897,6 +934,7 @@ export function AppProvider({ children }) {
           localStorage.setItem('AWAHAAN_admin_session', 'true');
           localStorage.setItem('aahwan_view_mode', 'admin-dashboard');
           setViewMode('admin-dashboard');
+          loadCloudConfig();
           return { success: true };
         }
       }
@@ -957,8 +995,15 @@ export function AppProvider({ children }) {
     const phone = (studentData.phone || '').trim();
     // Safety: Ensure email is never null or undefined to satisfy PostgreSQL NOT NULL constraint
     const email = (studentData.email || '').trim() || `${(rollNo || 'athlete').toLowerCase()}@gcekbpatna.ac.in`;
-    const events = Array.isArray(studentData.events) ? studentData.events : [];
+    const events = safeParseEvents(studentData.events);
     const timestamp = studentData.timestamp || new Date().toISOString();
+
+    if (!rollNo || !name || !phone) {
+      throw new Error('Name, Roll Number, and WhatsApp Phone are required.');
+    }
+    if (events.length === 0) {
+      throw new Error('Please select at least one sports discipline to register.');
+    }
 
     const newReg = {
       id: regId,
@@ -973,7 +1018,47 @@ export function AppProvider({ children }) {
       timestamp
     };
 
-    // 1. Optimistically update local state & localStorage
+    // 1. Guaranteed Direct Insert to Supabase public.registrations
+    if (!supabase) {
+      throw new Error('Database client is not available. Please check network connection.');
+    }
+
+    const { data: dbData, error: dbError } = await supabase.from('registrations').upsert({
+      id: regId,
+      roll_no: rollNo,
+      name,
+      branch,
+      year: yearVal,
+      gender,
+      phone,
+      email,
+      events,
+      created_at: timestamp
+    }).select();
+
+    if (dbError) {
+      console.error('Supabase registration insert error:', dbError);
+      throw new Error(dbError.message || 'Database rejected registration record.');
+    }
+
+    console.log('✅ Registration successfully saved to Supabase Cloud DB:', regId, dbData);
+
+    // 2. Dual-Persist to site_settings config.registrations backup
+    try {
+      const { data: currentSettings } = await supabase.from('site_settings').select('*').eq('id', 'global_config').single();
+      if (currentSettings?.config) {
+        const existingList = Array.isArray(currentSettings.config.registrations) ? currentSettings.config.registrations : [];
+        const updatedList = [newReg, ...existingList.filter(r => r.id !== regId && !(r.rollNo === rollNo && r.name === name))];
+        await supabase.from('site_settings').update({
+          config: { ...currentSettings.config, registrations: updatedList },
+          updated_at: new Date().toISOString()
+        }).eq('id', 'global_config');
+      }
+    } catch (backupErr) {
+      console.warn('Backup sync to site_settings config caught:', backupErr);
+    }
+
+    // 3. Optimistically update local state & localStorage
     setRegistrations(prev => {
       const filtered = prev.filter(r => r.id !== regId && !(r.rollNo === rollNo && r.name === name));
       const updated = [newReg, ...filtered];
@@ -981,32 +1066,6 @@ export function AppProvider({ children }) {
       localStorage.setItem('AWAHAAN_registrations', JSON.stringify(updated));
       return updated;
     });
-
-    // 2. Guaranteed cloud insert accessible to public student applicants without admin session
-    if (supabase) {
-      try {
-        const { error } = await supabase.from('registrations').upsert({
-          id: regId,
-          roll_no: rollNo,
-          name,
-          branch,
-          year: yearVal,
-          gender,
-          phone,
-          email,
-          events,
-          created_at: timestamp
-        });
-
-        if (error) {
-          console.error('Supabase registration insert error:', error.message);
-        } else {
-          console.log('✅ Registration successfully saved to Supabase Cloud DB:', regId);
-        }
-      } catch (err) {
-        console.error('Supabase registration insert exception:', err);
-      }
-    }
 
     return newReg;
   };
@@ -1023,6 +1082,16 @@ export function AppProvider({ children }) {
       try {
         const { error } = await supabase.from('registrations').delete().eq('id', studentId);
         if (error) console.warn('Supabase delete registration notice:', error.message);
+
+        // Also remove from site_settings backup
+        const { data: currentSettings } = await supabase.from('site_settings').select('*').eq('id', 'global_config').single();
+        if (currentSettings?.config && Array.isArray(currentSettings.config.registrations)) {
+          const updatedList = currentSettings.config.registrations.filter(r => r.id !== studentId);
+          await supabase.from('site_settings').update({
+            config: { ...currentSettings.config, registrations: updatedList },
+            updated_at: new Date().toISOString()
+          }).eq('id', 'global_config');
+        }
       } catch (err) {
         console.warn('Supabase delete registration exception:', err);
       }

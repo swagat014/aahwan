@@ -220,8 +220,9 @@ CREATE POLICY "Public access public leaderboard" ON public.leaderboard FOR ALL U
 CREATE POLICY "Public access public gallery" ON public.gallery FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access public registrations" ON public.registrations FOR ALL USING (true) WITH CHECK (true);
 
--- Enable Realtime for site_settings
+-- Enable Realtime for site_settings & registrations
 ALTER PUBLICATION supabase_realtime ADD TABLE public.site_settings;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.registrations;
 
 -- --------------------------------------------------------------------
 -- 9. CREATE AWAHAAN STORAGE BUCKET FOR MEDIA UPLOADS

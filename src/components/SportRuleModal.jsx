@@ -35,7 +35,7 @@ export default function SportRuleModal({ sport, onClose }) {
 
   const handleOpenRegistration = () => {
     onClose();
-    setShowStudentRegistration(true);
+    setShowStudentRegistration(sport.title || true);
   };
 
   return (

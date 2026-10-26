@@ -107,6 +107,17 @@ export default function StudentRegistrationModal() {
     });
   };
 
+  // Auto-select initial sport if passed through modal trigger
+  React.useEffect(() => {
+    if (typeof showStudentRegistration === 'string' && showStudentRegistration.trim()) {
+      const sportTitle = showStudentRegistration.trim();
+      setFormData(prev => ({
+        ...prev,
+        events: prev.events.includes(sportTitle) ? prev.events : [sportTitle, ...prev.events]
+      }));
+    }
+  }, [showStudentRegistration]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const cleanName = formData.name.trim();
@@ -140,17 +151,22 @@ export default function StudentRegistrationModal() {
 
     setIsSubmitting(true);
     try {
+      const cleanEmail = (formData.email || '').trim() || `${cleanRollNo.toLowerCase()}@gcekbpatna.ac.in`;
       const regToken = await addRegistration({
-        ...formData,
         name: cleanName,
         rollNo: cleanRollNo,
+        branch: formData.branch,
+        year: formData.year,
+        gender: formData.gender,
         phone: cleanPhone,
-        email: formData.email.trim() || `${cleanRollNo.toLowerCase()}@gcekbpatna.ac.in`
+        email: cleanEmail,
+        events: formData.events,
+        timestamp: new Date().toISOString()
       });
       setSubmittedReg(regToken);
     } catch (err) {
       console.error('Registration submission failed:', err);
-      alert('Registration could not be completed. Please check your internet connection and try again.');
+      alert(`Registration could not be saved to database: ${err.message || 'Please check your connection and try again.'}`);
     } finally {
       setIsSubmitting(false);
     }

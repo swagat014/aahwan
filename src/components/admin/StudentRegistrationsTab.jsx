@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { 
   Users, Trash2, Printer, Search, Filter, CheckCircle, BookOpen, 
@@ -8,13 +8,43 @@ import {
 import PrintableRosterModal from './PrintableRosterModal';
 
 export default function StudentRegistrationsTab() {
-  const { registrations, deleteRegistration, sports, refreshCloudData, cloudSyncStatus } = useApp();
+  const { registrations, deleteRegistration, sports, refreshCloudData, cloudSyncStatus, lastSyncedTime } = useApp();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSportFilter, setSelectedSportFilter] = useState('all');
   const [selectedBranchFilter, setSelectedBranchFilter] = useState('all');
   const [selectedGenderFilter, setSelectedGenderFilter] = useState('all');
   const [printSportTitle, setPrintSportTitle] = useState(null);
+
+  // Auto-fetch fresh registrations directly from the database on mount and poll every 15s
+  useEffect(() => {
+    let isMounted = true;
+    const fetchFresh = async () => {
+      if (refreshCloudData) {
+        setIsRefreshing(true);
+        try {
+          await refreshCloudData();
+        } catch (err) {
+          console.warn('Failed to load fresh registrations from database:', err);
+        } finally {
+          if (isMounted) setIsRefreshing(false);
+        }
+      }
+    };
+
+    fetchFresh();
+
+    const interval = setInterval(() => {
+      if (refreshCloudData && !isRefreshing) {
+        refreshCloudData();
+      }
+    }, 15000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   // Filter Registrations
   const filteredRegistrations = useMemo(() => {
@@ -90,9 +120,13 @@ export default function StudentRegistrationsTab() {
                 <span className="px-2 py-0.5 rounded-full bg-blue-100/80 text-blue-800 text-[0.65rem] font-black">
                   {registrations.length} Total
                 </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[0.62rem] font-bold">
+                  <Database size={10} className="text-emerald-600" />
+                  <span>Supabase Live</span>
+                </span>
               </div>
               <p className="text-[0.68rem] text-slate-500 font-semibold truncate">
-                Roster verification, event registrations, and printable official score-sheets
+                Fetched directly from database • {lastSyncedTime ? `Updated at ${lastSyncedTime}` : 'Connected'}
               </p>
             </div>
           </div>
