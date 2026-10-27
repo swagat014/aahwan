@@ -466,8 +466,8 @@ export default function AdminDashboardPage() {
             {activeTab === 'overview' && <AdminOverviewTab setActiveTab={setActiveTab} />}
             {activeTab === 'registrations' && <StudentRegistrationsTab />}
             {activeTab === 'sports' && <SportsTab />}
-            {activeTab === 'equipment-stocks' && <EquipmentStockTab />}
-            {activeTab === 'equipment-issues' && <EquipmentIssueReturnTab />}
+            {activeTab === 'equipment-stocks' && <EquipmentStockTab setActiveTab={setActiveTab} />}
+            {activeTab === 'equipment-issues' && <EquipmentIssueReturnTab setActiveTab={setActiveTab} />}
             {activeTab === 'gallery' && <GalleryTab />}
             {activeTab === 'dignitaries' && <DignitariesTab />}
             {activeTab === 'schedule' && <ScheduleLeaderboardTab />}

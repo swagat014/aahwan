@@ -27,7 +27,10 @@ import {
   CheckCircle,
   Clock4,
   History,
-  Timer
+  Timer,
+  RefreshCw,
+  Database,
+  Loader2
 } from 'lucide-react';
 
 // Date utility helpers
@@ -110,14 +113,57 @@ const checkIsOverdue = (log) => {
   return new Date().getTime() > exp.getTime();
 };
 
-export default function EquipmentIssueReturnTab() {
+export default function EquipmentIssueReturnTab({ setActiveTab }) {
   const { 
     equipmentList, 
     equipmentLogs, 
     issueEquipment, 
     returnEquipment,
-    deleteEquipmentLog
+    deleteEquipmentLog,
+    refreshCloudData,
+    cloudSyncStatus,
+    lastSyncedTime
   } = useApp();
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [toastNotification, setToastNotification] = useState(null);
+
+  // Auto-fetch fresh equipment data directly from database on mount and poll every 15s
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchFresh = async () => {
+      if (refreshCloudData) {
+        setIsRefreshing(true);
+        try {
+          await refreshCloudData();
+        } catch (err) {
+          console.warn('Failed to load fresh equipment data from database:', err);
+        } finally {
+          if (isMounted) setIsRefreshing(false);
+        }
+      }
+    };
+
+    fetchFresh();
+
+    const interval = setInterval(() => {
+      if (refreshCloudData && !isRefreshing) {
+        refreshCloudData();
+      }
+    }, 15000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const showToast = (text, type = 'success') => {
+    setToastNotification({ text, type });
+    setTimeout(() => {
+      setToastNotification(prev => (prev?.text === text ? null : prev));
+    }, 4000);
+  };
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'issued', 'returned', 'overdue'
@@ -203,7 +249,7 @@ export default function EquipmentIssueReturnTab() {
   }, [equipmentLogs, searchTerm, statusFilter, categoryFilter]);
 
   // Handle Issue Submit
-  const handleIssueSubmit = (e) => {
+  const handleIssueSubmit = async (e) => {
     e.preventDefault();
     if (!issueData.equipmentId || !issueData.borrowerName || !issueData.rollNo) return;
 
@@ -223,23 +269,28 @@ export default function EquipmentIssueReturnTab() {
     const formattedIssueDate = dateTimeLocalToDisplay(issueData.issueDateLocal);
     const formattedExpectedReturn = dateTimeLocalToDisplay(issueData.expectedReturnLocal);
 
-    issueEquipment({
-      equipmentId: targetEquip.id,
-      equipmentName: targetEquip.name,
-      category: targetEquip.category || 'General',
-      borrowerName: issueData.borrowerName,
-      rollNo: issueData.rollNo,
-      branch: issueData.branch,
-      borrowerPhone: issueData.borrowerPhone,
-      qty: Number(issueData.qty),
-      issueDate: formattedIssueDate,
-      issueTimestamp: issueData.issueDateLocal ? new Date(issueData.issueDateLocal).toISOString() : new Date().toISOString(),
-      expectedReturn: formattedExpectedReturn,
-      expectedReturnTimestamp: issueData.expectedReturnLocal ? new Date(issueData.expectedReturnLocal).toISOString() : '',
-      purpose: issueData.purpose,
-      issueCondition: issueData.issueCondition,
-      notes: issueData.notes
-    });
+    try {
+      await issueEquipment({
+        equipmentId: targetEquip.id,
+        equipmentName: targetEquip.name,
+        category: targetEquip.category || 'General',
+        borrowerName: issueData.borrowerName,
+        rollNo: issueData.rollNo,
+        branch: issueData.branch,
+        borrowerPhone: issueData.borrowerPhone,
+        qty: Number(issueData.qty),
+        issueDate: formattedIssueDate,
+        issueTimestamp: issueData.issueDateLocal ? new Date(issueData.issueDateLocal).toISOString() : new Date().toISOString(),
+        expectedReturn: formattedExpectedReturn,
+        expectedReturnTimestamp: issueData.expectedReturnLocal ? new Date(issueData.expectedReturnLocal).toISOString() : '',
+        purpose: issueData.purpose,
+        issueCondition: issueData.issueCondition,
+        notes: issueData.notes
+      });
+      showToast(`Successfully issued ${issueData.qty}x ${targetEquip.name} to ${issueData.borrowerName}. Synced to database.`);
+    } catch (err) {
+      showToast(err.message || 'Failed to issue equipment', 'error');
+    }
 
     setIssueData({
       equipmentId: '',
@@ -267,24 +318,34 @@ export default function EquipmentIssueReturnTab() {
   };
 
   // Confirm Return
-  const handleReturnConfirm = () => {
+  const handleReturnConfirm = async () => {
     if (!returnLog) return;
     const formattedReturnDate = dateTimeLocalToDisplay(returnDateLocal);
-    returnEquipment(
-      returnLog.id, 
-      returnCondition, 
-      returnNotes, 
-      Number(returnQty), 
-      formattedReturnDate
-    );
+    try {
+      await returnEquipment(
+        returnLog.id, 
+        returnCondition, 
+        returnNotes, 
+        Number(returnQty), 
+        formattedReturnDate
+      );
+      showToast(`Return marked for ${returnLog.equipmentName} (${returnLog.borrowerName}). Synced to database.`);
+    } catch (err) {
+      showToast(err.message || 'Failed to register return', 'error');
+    }
     setReturnLog(null);
   };
 
   // Delete Log
-  const handleDeleteLog = (logId) => {
+  const handleDeleteLog = async (logId) => {
     if (window.confirm(`Delete record #${logId} permanently from the register?`)) {
       if (deleteEquipmentLog) {
-        deleteEquipmentLog(logId);
+        try {
+          await deleteEquipmentLog(logId);
+          showToast(`Record #${logId} removed and synced to database.`);
+        } catch (err) {
+          showToast(err.message || 'Failed to delete record', 'error');
+        }
       }
     }
   };
@@ -351,24 +412,81 @@ export default function EquipmentIssueReturnTab() {
   };
 
   return (
-    <div className="space-y-5 select-none">
+    <div className="space-y-4 sm:space-y-5 select-none relative">
       
+      {/* TOAST NOTIFICATION BANNER */}
+      {toastNotification && (
+        <div className={`p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold transition-all shadow-md animate-in fade-in slide-in-from-top-2 ${
+          toastNotification.type === 'error'
+            ? 'bg-rose-50 border-rose-300 text-rose-800'
+            : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+        }`}>
+          <div className="flex items-center gap-2">
+            {toastNotification.type === 'error' ? (
+              <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+            ) : (
+              <CheckCircle size={16} className="text-emerald-600 shrink-0" />
+            )}
+            <span>{toastNotification.text}</span>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setToastNotification(null)}
+            className="p-1 hover:bg-black/5 rounded-lg cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* MOBILE 2-WAY QUICK SWITCH BAR (< md) */}
+      <div className="flex md:hidden items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs gap-1">
+        <button
+          type="button"
+          onClick={() => setActiveTab && setActiveTab('equipment-stocks')}
+          className="flex-1 py-2 px-2.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/70 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+        >
+          <Package size={14} className="text-amber-500" />
+          <span>Gear Inventory</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[0.6rem] font-bold bg-slate-200 text-slate-700">
+            {equipmentList.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          className="flex-1 py-2 px-2.5 text-xs font-black rounded-lg bg-slate-900 text-white shadow-xs transition flex items-center justify-center gap-1.5 cursor-default"
+        >
+          <RotateCcw size={14} className="text-amber-400" />
+          <span>Issue & Returns</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[0.6rem] font-black bg-amber-500 text-slate-950">
+            {activeIssuedLogs.length > 0 ? activeIssuedLogs.length : equipmentLogs.length}
+          </span>
+        </button>
+      </div>
+
       {/* HEADER & ACTION CONTROLS */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-slate-200">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-slate-200">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600">
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 shrink-0">
               <RotateCcw size={18} />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
-                <span>Equipment Issue & Return Register</span>
-                <span className="px-2 py-0.5 rounded-full text-[0.6rem] font-black uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">
-                  Live Audit
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                  <span>Issue & Return Register</span>
+                  <span className="hidden sm:inline px-2 py-0.5 rounded-full text-[0.6rem] font-black uppercase tracking-wider bg-blue-100 text-blue-700 border border-blue-200">
+                    Live Audit
+                  </span>
+                </h3>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[0.62rem] font-bold">
+                  <Database size={10} className="text-emerald-600" />
+                  <span>Supabase Live</span>
                 </span>
-              </h3>
-              <p className="text-[0.72rem] font-semibold text-slate-500 mt-0.5">
-                Accurate issue timestamps, expected & actual return schedules, borrower accountability, and clearance records.
+              </div>
+              <p className="text-[0.7rem] font-semibold text-slate-500 mt-0.5">
+                {lastSyncedTime ? `Synced at ${lastSyncedTime}` : 'Cloud Connected'} • Student accountability & return schedules.
               </p>
             </div>
           </div>
@@ -376,12 +494,28 @@ export default function EquipmentIssueReturnTab() {
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
+            onClick={async () => {
+              if (refreshCloudData) {
+                setIsRefreshing(true);
+                await refreshCloudData();
+                setTimeout(() => setIsRefreshing(false), 600);
+              }
+            }}
+            disabled={isRefreshing || cloudSyncStatus === 'syncing'}
+            className="px-2.5 sm:px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="Fetch fresh issue & return records from Supabase Database"
+          >
+            <RefreshCw size={13} className={isRefreshing || cloudSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">{isRefreshing || cloudSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Cloud'}</span>
+          </button>
+
+          <button
             onClick={handleExportCSV}
             title="Download CSV report of all issue and return records"
-            className="flex-1 sm:flex-initial px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+            className="px-2.5 sm:px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 hover:text-slate-900 font-bold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-1.5 transition cursor-pointer"
           >
             <FileSpreadsheet size={14} className="text-emerald-600" />
-            <span>Export CSV</span>
+            <span className="hidden sm:inline">Export CSV</span>
           </button>
 
           <button
@@ -396,16 +530,88 @@ export default function EquipmentIssueReturnTab() {
               }
               setShowIssueModal(true);
             }}
-            className="flex-1 sm:flex-initial px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition cursor-pointer"
+            className="flex-1 sm:flex-initial px-4 py-2 sm:py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs sm:text-xs rounded-xl flex items-center justify-center gap-1.5 shadow-sm transition active:scale-95 cursor-pointer"
           >
             <ArrowUpRight size={15} /> 
-            <span>Issue Equipment</span>
+            <span>+ Issue Gear</span>
           </button>
         </div>
       </div>
 
-      {/* KPI METRIC CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+      {/* MOBILE COMPACT STATS PILLS (< sm screens) */}
+      <div className="flex sm:hidden items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+        <button
+          onClick={() => setStatusFilter('all')}
+          className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer ${
+            statusFilter === 'all'
+              ? 'bg-slate-900 text-white shadow-2xs'
+              : 'bg-slate-100 text-slate-700 border border-slate-200'
+          }`}
+        >
+          <span>All</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[0.62rem] font-black ${
+            statusFilter === 'all' ? 'bg-white/20 text-white' : 'bg-white text-slate-700'
+          }`}>
+            {equipmentLogs.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setStatusFilter('issued')}
+          className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer ${
+            statusFilter === 'issued'
+              ? 'bg-amber-500 text-slate-950 font-black shadow-2xs'
+              : 'bg-amber-50 text-amber-800 border border-amber-200'
+          }`}
+        >
+          <Clock size={12} className={statusFilter === 'issued' ? 'text-slate-950' : 'text-amber-600'} />
+          <span>On Loan</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[0.62rem] font-black ${
+            statusFilter === 'issued' ? 'bg-slate-950/20 text-slate-950' : 'bg-amber-200/60 text-amber-900'
+          }`}>
+            {activeIssuedLogs.reduce((acc, curr) => acc + (Number(curr.qty) || 0), 0)}u
+          </span>
+        </button>
+
+        {overdueLogs.length > 0 && (
+          <button
+            onClick={() => setStatusFilter('overdue')}
+            className={`px-3 py-1.5 rounded-xl font-black flex items-center gap-1.5 shrink-0 transition cursor-pointer ${
+              statusFilter === 'overdue'
+                ? 'bg-rose-600 text-white shadow-2xs'
+                : 'bg-rose-50 text-rose-700 border border-rose-200 animate-pulse'
+            }`}
+          >
+            <AlertTriangle size={12} className={statusFilter === 'overdue' ? 'text-white' : 'text-rose-600'} />
+            <span>Overdue</span>
+            <span className={`px-1.5 py-0.2 rounded-full text-[0.62rem] font-black ${
+              statusFilter === 'overdue' ? 'bg-white/20 text-white' : 'bg-rose-200/60 text-rose-900'
+            }`}>
+              {overdueLogs.length}
+            </span>
+          </button>
+        )}
+
+        <button
+          onClick={() => setStatusFilter('returned')}
+          className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1.5 shrink-0 transition cursor-pointer ${
+            statusFilter === 'returned'
+              ? 'bg-emerald-600 text-white shadow-2xs'
+              : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+          }`}
+        >
+          <CheckCircle2 size={12} className={statusFilter === 'returned' ? 'text-white' : 'text-emerald-600'} />
+          <span>Cleared</span>
+          <span className={`px-1.5 py-0.2 rounded-full text-[0.62rem] font-black ${
+            statusFilter === 'returned' ? 'bg-white/20 text-white' : 'bg-emerald-200/60 text-emerald-900'
+          }`}>
+            {returnedLogs.length}
+          </span>
+        </button>
+      </div>
+
+      {/* DESKTOP KPI METRIC CARDS (sm and up) */}
+      <div className="hidden sm:grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 shadow-2xs">
           <div className="flex items-center justify-between text-slate-500 text-[0.62rem] font-bold uppercase tracking-wider mb-0.5">
             <span>Total Loan Records</span>
@@ -795,7 +1001,7 @@ export default function EquipmentIssueReturnTab() {
           </div>
 
           {/* MOBILE CARDS VIEW (< md screens) */}
-          <div className="block md:hidden p-2.5 sm:p-3 space-y-3 bg-slate-50/50">
+          <div className="block md:hidden p-2 sm:p-3 space-y-3 bg-slate-50/50">
             {filteredLogs.map((log) => {
               const isOverdue = checkIsOverdue(log);
               const duration = calculateLoanDuration(
@@ -803,13 +1009,14 @@ export default function EquipmentIssueReturnTab() {
                 log.returnTimestamp || log.returnDate
               );
               const hasPartialReturn = Number(log.returnedCount || 0) > 0 && log.status === 'issued';
+              const borrowerInitial = (log.borrowerName || 'S').trim().charAt(0).toUpperCase();
 
               return (
                 <div 
                   key={`card-${log.id}`}
-                  className={`bg-white rounded-2xl border p-3.5 shadow-2xs transition-all space-y-2.5 relative overflow-hidden ${
+                  className={`bg-white rounded-2xl border p-3.5 shadow-2xs transition-all space-y-3 relative overflow-hidden ${
                     isOverdue 
-                      ? 'border-rose-300 bg-rose-50/20' 
+                      ? 'border-rose-300 bg-rose-50/20 ring-1 ring-rose-200' 
                       : log.status === 'issued'
                         ? 'border-amber-200'
                         : 'border-slate-200'
@@ -824,20 +1031,30 @@ export default function EquipmentIssueReturnTab() {
                         : 'bg-emerald-500'
                   }`} />
 
-                  {/* Top Bar: Log ID, Category, & Status Pill */}
-                  <div className="flex items-center justify-between gap-2 pt-0.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="font-mono font-bold text-xs text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                        #{log.id}
-                      </span>
-                      {log.category && (
-                        <span className="text-[0.62rem] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200 truncate">
-                          {log.category}
+                  {/* 1. Header: Gear Title, Count & Status Pill */}
+                  <div className="flex items-start justify-between gap-2 pt-0.5">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-bold text-[0.68rem] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
+                          #{log.id}
                         </span>
+                        {log.category && (
+                          <span className="text-[0.62rem] px-2 py-0.2 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
+                            {log.category}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-black text-slate-900 text-sm leading-snug mt-1">
+                        {log.equipmentName}
+                      </h4>
+                      {log.purpose && (
+                        <p className="text-[0.65rem] text-slate-500 italic mt-0.5 line-clamp-1">
+                          "{log.purpose}"
+                        </p>
                       )}
                     </div>
 
-                    <div>
+                    <div className="shrink-0 flex flex-col items-end gap-1">
                       {log.status === 'issued' ? (
                         isOverdue ? (
                           <span className="px-2 py-0.5 rounded-full bg-rose-600 text-white font-black text-[0.62rem] uppercase tracking-wider inline-flex items-center gap-1 shadow-2xs animate-pulse">
@@ -848,7 +1065,7 @@ export default function EquipmentIssueReturnTab() {
                             <Clock size={10} /> Partial ({log.returnedCount})
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold border border-amber-300 text-[0.62rem] inline-flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-black border border-amber-300 text-[0.62rem] inline-flex items-center gap-1">
                             <Clock size={10} /> On Loan
                           </span>
                         )
@@ -861,87 +1078,68 @@ export default function EquipmentIssueReturnTab() {
                           <AlertTriangle size={10} /> Damaged
                         </span>
                       ) : (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold border border-emerald-300 text-[0.62rem] inline-flex items-center gap-1">
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-black border border-emerald-300 text-[0.62rem] inline-flex items-center gap-1">
                           <CheckCircle2 size={10} /> Cleared
                         </span>
                       )}
-                    </div>
-                  </div>
 
-                  {/* Equipment Item Name & Qty */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <h4 className="font-black text-slate-900 text-sm leading-snug">
-                        {log.equipmentName}
-                      </h4>
-                      {log.purpose && (
-                        <p className="text-[0.65rem] text-slate-500 italic mt-0.5 line-clamp-1">
-                          "{log.purpose}"
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      <span className={`px-2 py-0.5 rounded-lg text-xs font-black inline-block font-mono ${
+                      <span className={`px-2 py-0.5 rounded-md text-xs font-black font-mono ${
                         log.status === 'issued'
                           ? 'bg-amber-500 text-slate-950 shadow-2xs'
                           : 'bg-slate-100 text-slate-800 border border-slate-200'
                       }`}>
-                        {log.qty} {log.status === 'issued' ? 'out' : 'units'}
+                        {log.qty} {log.status === 'issued' ? 'unit out' : 'units'}
                       </span>
                     </div>
                   </div>
 
-                  {/* Student Borrower Profile Card */}
-                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900 truncate">
-                        <User size={12} className="text-blue-600 shrink-0" />
-                        <span className="truncate">{log.borrowerName}</span>
+                  {/* 2. Student Borrower Profile Card */}
+                  <div className="p-2.5 bg-slate-50/90 rounded-xl border border-slate-200/80 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-black text-xs flex items-center justify-center shrink-0 border border-blue-200">
+                        {borrowerInitial}
                       </div>
-                      <span className="px-1.5 py-0.2 rounded text-[0.6rem] font-black uppercase tracking-wider bg-blue-100 text-blue-800 border border-blue-200 shrink-0">
-                        {log.branch}
-                      </span>
+                      <div className="min-w-0">
+                        <div className="font-bold text-xs text-slate-900 truncate">
+                          {log.borrowerName}
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[0.65rem] text-slate-500 font-semibold truncate">
+                          <span className="font-mono font-bold text-slate-600">Roll: {log.rollNo}</span>
+                          <span>•</span>
+                          <span className="font-bold text-blue-700">{log.branch}</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-[0.65rem] text-slate-500 font-semibold pt-0.5">
-                      <span className="font-mono text-slate-600 font-bold">Roll: {log.rollNo}</span>
-                      {log.borrowerPhone ? (
-                        <a 
-                          href={`tel:${log.borrowerPhone}`} 
-                          className="text-blue-600 hover:text-blue-800 flex items-center gap-1 font-bold"
-                        >
-                          <Phone size={10} />
-                          <span>{log.borrowerPhone}</span>
-                        </a>
-                      ) : (
-                        <span className="text-slate-400 italic">No phone</span>
-                      )}
-                    </div>
+                    {log.borrowerPhone && (
+                      <a 
+                        href={`tel:${log.borrowerPhone}`} 
+                        className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-xs font-black flex items-center gap-1 shrink-0 transition active:scale-95 shadow-2xs"
+                        title="Call student"
+                      >
+                        <Phone size={12} className="text-emerald-600" />
+                        <span>Call</span>
+                      </a>
+                    )}
                   </div>
 
-                  {/* Date & Time Timeline Grid */}
+                  {/* 3. Schedule Timeline Strip */}
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    {/* Issued Box */}
-                    <div className="p-2 bg-blue-50/70 rounded-xl border border-blue-100 space-y-0.5">
-                      <span className="text-[0.6rem] uppercase font-black text-blue-700 flex items-center gap-1">
-                        <Calendar size={10} /> Issued
+                    <div className="p-2 bg-slate-50 rounded-xl border border-slate-200/80">
+                      <span className="text-[0.6rem] uppercase font-black text-slate-500 flex items-center gap-1">
+                        <Calendar size={10} className="text-blue-500" /> Issued At
                       </span>
-                      <span className="font-black text-slate-900 text-[0.72rem] block leading-tight">
+                      <span className="font-black text-slate-900 text-[0.7rem] block leading-tight mt-0.5">
                         {formatDisplayDateTime(log.issueDate)}
                       </span>
-                      <span className="text-[0.6rem] text-slate-500 font-semibold block truncate">
-                        Cond: <strong className="text-slate-700">{log.issueCondition || 'Good'}</strong>
-                      </span>
                     </div>
 
-                    {/* Returned / Scheduled Due Box */}
-                    <div className={`p-2 rounded-xl border space-y-0.5 ${
+                    <div className={`p-2 rounded-xl border ${
                       log.status === 'returned'
-                        ? 'bg-emerald-50/70 border-emerald-100'
+                        ? 'bg-emerald-50/70 border-emerald-200'
                         : isOverdue
-                          ? 'bg-rose-50 border-rose-200'
-                          : 'bg-amber-50/70 border-amber-100'
+                          ? 'bg-rose-50 border-rose-300'
+                          : 'bg-amber-50/70 border-amber-200'
                     }`}>
                       <span className={`text-[0.6rem] uppercase font-black flex items-center gap-1 ${
                         log.status === 'returned' 
@@ -951,55 +1149,59 @@ export default function EquipmentIssueReturnTab() {
                             : 'text-amber-700'
                       }`}>
                         {log.status === 'returned' ? <CheckCircle2 size={10} /> : <CalendarClock size={10} />}
-                        {log.status === 'returned' ? 'Returned' : 'Scheduled Due'}
+                        {log.status === 'returned' ? 'Returned At' : 'Due At'}
                       </span>
-                      <span className={`font-black text-[0.72rem] block leading-tight ${
+                      <span className={`font-black text-[0.7rem] block leading-tight mt-0.5 ${
                         log.status === 'returned'
                           ? 'text-emerald-800'
                           : isOverdue
-                            ? 'text-rose-700 font-black'
+                            ? 'text-rose-700'
                             : 'text-slate-900'
                       }`}>
                         {log.status === 'returned' 
                           ? formatDisplayDateTime(log.returnDate)
                           : (log.expectedReturn ? formatDisplayDateTime(log.expectedReturn) : 'Open Window')}
                       </span>
-                      <span className="text-[0.6rem] text-slate-500 font-semibold block truncate">
-                        {log.status === 'returned' 
-                          ? `Cond: ${log.returnCondition || 'Good'}`
-                          : isOverdue ? '⚠️ Past Deadline' : 'Active Loan'}
-                      </span>
                     </div>
                   </div>
 
-                  {/* Card Bottom Actions */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono text-[0.65rem] font-bold border border-slate-200 inline-flex items-center gap-1">
-                      <Timer size={10} className="text-slate-400" />
-                      {duration || '—'}
-                    </span>
+                  {/* 4. PRIMARY MOBILE RETURN BUTTON (Full width, big thumb target) */}
+                  {log.status === 'issued' && (
+                    <button
+                      onClick={() => openReturnModal(log)}
+                      className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-xs flex items-center justify-center gap-2 transition active:scale-98 cursor-pointer"
+                    >
+                      <RotateCcw size={15} />
+                      <span>✓ Mark as Returned to Store</span>
+                    </button>
+                  )}
 
-                    <div className="flex items-center gap-1.5">
-                      {log.status === 'issued' && (
-                        <button
-                          onClick={() => openReturnModal(log)}
-                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-xs transition flex items-center gap-1 cursor-pointer active:scale-95"
-                        >
-                          <RotateCcw size={12} /> Return
-                        </button>
+                  {/* 5. Card Bottom Status & Secondary Actions */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
+                    <div className="flex items-center gap-1.5 text-[0.65rem] text-slate-500 font-semibold min-w-0">
+                      <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-mono font-bold border border-slate-200 inline-flex items-center gap-1 shrink-0">
+                        <Timer size={10} className="text-slate-400" />
+                        {duration || '—'}
+                      </span>
+                      {log.status === 'returned' && (
+                        <span className="text-emerald-700 font-bold truncate">
+                          ✓ {log.returnCondition || 'Good Condition'}
+                        </span>
                       )}
+                    </div>
 
+                    <div className="flex items-center gap-1.5 shrink-0">
                       <button
                         onClick={() => setDossierLog(log)}
-                        className="px-2.5 py-1.5 text-slate-700 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 border border-slate-200 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1"
+                        className="px-2.5 py-1 text-slate-700 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 border border-slate-200 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1"
                       >
-                        <Eye size={13} />
+                        <Eye size={12} />
                         <span>Dossier</span>
                       </button>
 
                       <button
                         onClick={() => handleDeleteLog(log.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition cursor-pointer"
+                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                         title="Delete log"
                       >
                         <Trash2 size={13} />
@@ -1149,6 +1351,28 @@ export default function EquipmentIssueReturnTab() {
                       <option value="Mechanical Engineering (ME)">Mechanical Engineering (ME)</option>
                       <option value="Civil Engineering (CE)">Civil Engineering (CE)</option>
                     </select>
+                    {/* Mobile Quick Branch Chips */}
+                    <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                      {[
+                        { label: 'CSE', val: 'Computer Science & Engg (CSE)' },
+                        { label: 'EE', val: 'Electrical Engineering (EE)' },
+                        { label: 'ME', val: 'Mechanical Engineering (ME)' },
+                        { label: 'CE', val: 'Civil Engineering (CE)' }
+                      ].map(b => (
+                        <button
+                          key={b.label}
+                          type="button"
+                          onClick={() => setIssueData(prev => ({ ...prev, branch: b.val }))}
+                          className={`px-2 py-0.5 text-[0.62rem] font-bold rounded border transition cursor-pointer ${
+                            issueData.branch === b.val
+                              ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                              : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-200'
+                          }`}
+                        >
+                          {b.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   <div>
@@ -1200,8 +1424,15 @@ export default function EquipmentIssueReturnTab() {
                 </div>
 
                 {/* Quick Presets for Expected Return */}
-                <div className="flex items-center gap-1.5 pt-0.5">
+                <div className="flex items-center gap-1.5 pt-0.5 flex-wrap">
                   <span className="text-[0.62rem] font-bold text-slate-500">Quick Due:</span>
+                  <button
+                    type="button"
+                    onClick={() => setIssueData(prev => ({ ...prev, expectedReturnLocal: getNowDateTimeLocal(1) }))}
+                    className="px-2 py-0.5 bg-white hover:bg-blue-100 text-blue-700 font-bold text-[0.62rem] rounded border border-blue-200 cursor-pointer"
+                  >
+                    +1 Hour
+                  </button>
                   <button
                     type="button"
                     onClick={() => setIssueData(prev => ({ ...prev, expectedReturnLocal: getNowDateTimeLocal(2) }))}
@@ -1335,6 +1566,50 @@ export default function EquipmentIssueReturnTab() {
                   Units Out: <strong>{returnLog.qty}</strong>
                 </span>
               </div>
+            </div>
+
+            {/* ⚡ 1-TAP FAST TRACK RETURN BUTTON (95% STANDARD CASE) */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 sm:p-3 space-y-2">
+              <div className="flex items-center justify-between text-[0.68rem] text-emerald-800 font-bold">
+                <span className="flex items-center gap-1">
+                  <CheckCircle size={13} className="text-emerald-600" />
+                  <span>Standard Full Clearance</span>
+                </span>
+                <span className="text-[0.6rem] bg-emerald-200/70 text-emerald-900 px-1.5 py-0.2 rounded font-black uppercase tracking-wider">
+                  1-Tap Fast
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={async () => {
+                  const formattedNow = dateTimeLocalToDisplay(getNowDateTimeLocal(0));
+                  try {
+                    await returnEquipment(
+                      returnLog.id,
+                      'Good Condition',
+                      '1-Tap Fast Mobile Return (All units in Good Condition)',
+                      Number(returnLog.qty),
+                      formattedNow
+                    );
+                    showToast(`✓ Cleared ${returnLog.qty}x ${returnLog.equipmentName} returned by ${returnLog.borrowerName}.`);
+                  } catch (err) {
+                    showToast(err.message || 'Failed to register return', 'error');
+                  }
+                  setReturnLog(null);
+                }}
+                className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg font-black text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition"
+              >
+                <CheckCircle2 size={15} />
+                <span>⚡ 1-Tap Return: All {returnLog.qty} Unit(s) in Good Condition</span>
+              </button>
+            </div>
+
+            <div className="relative flex py-0.5 items-center">
+              <div className="flex-grow border-t border-slate-200"></div>
+              <span className="flex-shrink mx-2 text-[0.62rem] text-slate-400 font-bold uppercase tracking-wider">
+                Or customize return details
+              </span>
+              <div className="flex-grow border-t border-slate-200"></div>
             </div>
 
             {/* Quantity Returning Input (Supports Partial Returns) */}

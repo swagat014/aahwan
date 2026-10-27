@@ -31,10 +31,12 @@ import {
   User,
   SlidersHorizontal,
   CheckSquare,
-  Square
+  Square,
+  RefreshCw,
+  Database
 } from 'lucide-react';
 
-export default function EquipmentStockTab() {
+export default function EquipmentStockTab({ setActiveTab }) {
   const { 
     equipmentList, 
     addEquipment, 
@@ -42,8 +44,51 @@ export default function EquipmentStockTab() {
     deleteEquipment, 
     equipmentLogs,
     issueEquipment,
-    returnEquipment
+    returnEquipment,
+    refreshCloudData,
+    cloudSyncStatus,
+    lastSyncedTime
   } = useApp();
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [toastNotification, setToastNotification] = useState(null);
+
+  // Auto-fetch fresh equipment data directly from database on mount and poll every 15s
+  useEffect(() => {
+    let isMounted = true;
+    const fetchFresh = async () => {
+      if (refreshCloudData) {
+        setIsRefreshing(true);
+        try {
+          await refreshCloudData();
+        } catch (err) {
+          console.warn('Failed to load fresh equipment data from database:', err);
+        } finally {
+          if (isMounted) setIsRefreshing(false);
+        }
+      }
+    };
+
+    fetchFresh();
+
+    const interval = setInterval(() => {
+      if (refreshCloudData && !isRefreshing) {
+        refreshCloudData();
+      }
+    }, 15000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const showToast = (text, type = 'success') => {
+    setToastNotification({ text, type });
+    setTimeout(() => {
+      setToastNotification(prev => (prev?.text === text ? null : prev));
+    }, 4000);
+  };
 
   // Search & Filtering State
   const [searchTerm, setSearchTerm] = useState('');
@@ -461,15 +506,21 @@ export default function EquipmentStockTab() {
   };
 
   // Handle Equipment Add/Edit Submit
-  const handleAddSubmit = (e) => {
+  const handleAddSubmit = async (e) => {
     e.preventDefault();
     if (!newEquip.name.trim()) return;
 
-    if (editingItem) {
-      updateEquipment(editingItem.id, newEquip);
-      setEditingItem(null);
-    } else {
-      addEquipment(newEquip);
+    try {
+      if (editingItem) {
+        await updateEquipment(editingItem.id, newEquip);
+        showToast(`Updated ${newEquip.name}. Synced to database.`);
+        setEditingItem(null);
+      } else {
+        await addEquipment(newEquip);
+        showToast(`Added ${newEquip.name} to inventory. Synced to database.`);
+      }
+    } catch (err) {
+      showToast(err.message || 'Failed to save equipment', 'error');
     }
 
     setShowAddModal(false);
@@ -782,136 +833,176 @@ export default function EquipmentStockTab() {
     return (
       <div 
         key={`card-eq-${item.id}`}
-        className="bg-white rounded-xl border border-slate-200 p-2.5 shadow-2xs space-y-2 transition-all"
+        className="bg-white rounded-2xl border border-slate-200 p-3 shadow-2xs space-y-2.5 transition-all"
       >
         {/* Main Row: Emoji, Name, Discipline, Status Badge */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-base shrink-0 p-1 bg-slate-100 rounded-lg border border-slate-200">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="text-xl shrink-0 w-10 h-10 flex items-center justify-center bg-slate-100 rounded-xl border border-slate-200">
               {categoryObj.icon}
             </span>
             <div className="min-w-0">
-              <h4 className="font-bold text-slate-900 text-xs truncate">
+              <h4 className="font-black text-slate-900 text-xs sm:text-sm truncate">
                 {item.name}
               </h4>
-              <span className="text-[0.62rem] text-slate-400 block truncate">
-                {item.category || 'General'} {item.location ? `• ${item.location}` : ''}
-              </span>
+              <div className="flex items-center gap-1.5 text-[0.62rem] text-slate-500 font-semibold mt-0.5 truncate">
+                <span className="text-blue-700 font-bold">{item.category || 'General'}</span>
+                {item.location && <span>• {item.location}</span>}
+              </div>
             </div>
           </div>
 
           <div className="shrink-0">
             {isOut ? (
-              <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 font-black text-[0.62rem] border border-rose-200">
+              <span className="px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 font-black text-[0.62rem] border border-rose-200">
                 Out of Stock
               </span>
             ) : isLow ? (
-              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 font-black text-[0.62rem] border border-amber-200">
+              <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-black text-[0.62rem] border border-amber-200">
                 Low ({availForThis})
               </span>
             ) : (
-              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold text-[0.62rem] border border-emerald-200">
-                {availForThis} in store
+              <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-[0.62rem] border border-emerald-200">
+                🟢 {availForThis} in store
               </span>
             )}
           </div>
         </div>
 
-        {/* Numbers & Action Bar */}
-        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 text-xs">
-          <div className="flex items-center gap-2 text-[0.65rem] text-slate-500 font-mono">
-            <span>Total: <strong className="text-slate-800">{item.totalQty}</strong></span>
+        {/* Quantities breakdown strip */}
+        <div className="flex items-center justify-between bg-slate-50 p-2 rounded-xl border border-slate-200/80 text-xs">
+          <div className="flex items-center gap-3 text-[0.68rem] text-slate-600 font-bold">
+            <span>In Store: <strong className="text-emerald-700 font-black">{availForThis}</strong></span>
             <span>•</span>
-            {issuedForThis > 0 ? (
-              <button
-                onClick={() => toggleRowExpand(item.id)}
-                className="text-amber-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
-              >
-                Loaned: {issuedForThis} {isExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-              </button>
-            ) : (
-              <span>Loaned: 0</span>
-            )}
+            <span>Total: <strong className="text-slate-900 font-mono">{item.totalQty}</strong></span>
           </div>
 
-          <div className="flex items-center gap-1">
-            {/* Quick Issue */}
+          {issuedForThis > 0 ? (
             <button
-              onClick={() => openQuickIssue(item)}
-              disabled={availForThis <= 0}
-              className={`px-2 py-0.5 rounded-md text-[0.65rem] font-bold flex items-center gap-0.5 transition ${
-                availForThis > 0
-                  ? 'bg-amber-500 hover:bg-amber-600 text-slate-950 cursor-pointer active:scale-95'
-                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-              }`}
+              onClick={() => toggleRowExpand(item.id)}
+              className="text-[0.65rem] font-bold text-amber-800 bg-amber-100/80 hover:bg-amber-200/80 px-2 py-0.5 rounded-lg border border-amber-200 flex items-center gap-1 cursor-pointer transition active:scale-95"
             >
-              <Zap size={10} className={availForThis > 0 ? 'fill-slate-950' : ''} />
-              <span>Issue</span>
+              <span>Loaned: {issuedForThis}</span>
+              {isExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
             </button>
+          ) : (
+            <span className="text-[0.62rem] text-slate-400 font-semibold">0 on loan</span>
+          )}
+        </div>
 
-            {/* Stepper */}
-            <div className="inline-flex items-center bg-slate-100 rounded-md border border-slate-200 font-mono text-[0.65rem]">
-              <button
-                onClick={() => handleQuickQtyChange(item, -1)}
-                className="px-1 py-0.5 text-slate-600 hover:text-slate-900 cursor-pointer"
-                title="-1"
-              >
-                -
-              </button>
-              <button
-                onClick={() => handleQuickQtyChange(item, 1)}
-                className="px-1 py-0.5 text-slate-600 hover:text-slate-900 cursor-pointer"
-                title="+1"
-              >
-                +
-              </button>
-            </div>
+        {/* Mobile Action Controls Bar */}
+        <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100">
+          {/* Quick Issue Button (Thumb friendly) */}
+          <button
+            onClick={() => openQuickIssue(item)}
+            disabled={availForThis <= 0}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition active:scale-95 ${
+              availForThis > 0
+                ? 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 shadow-2xs cursor-pointer'
+                : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+            }`}
+          >
+            <Zap size={13} className={availForThis > 0 ? 'fill-slate-950' : ''} />
+            <span>Issue Gear</span>
+          </button>
 
-            {/* Edit */}
+          {/* Stepper for stock counting */}
+          <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 font-mono text-xs shadow-2xs">
+            <button
+              onClick={() => handleQuickQtyChange(item, -1)}
+              className="px-2 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-white rounded-lg cursor-pointer transition"
+              title="-1 unit"
+            >
+              <Minus size={12} />
+            </button>
+            <span 
+              onClick={() => {
+                setInlineEditingId(item.id);
+                setInlineQtyValue(String(item.totalQty || 1));
+              }}
+              className="w-8 text-center font-bold text-slate-900 cursor-text"
+              title="Click to edit quantity"
+            >
+              {item.totalQty}
+            </span>
+            <button
+              onClick={() => handleQuickQtyChange(item, 1)}
+              className="px-2 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-white rounded-lg cursor-pointer transition"
+              title="+1 unit"
+            >
+              <Plus size={12} />
+            </button>
+          </div>
+
+          {/* Edit / Delete Icons */}
+          <div className="flex items-center gap-0.5 shrink-0">
             <button
               onClick={() => openEditModal(item)}
-              className="p-1 text-slate-400 hover:text-blue-600 rounded cursor-pointer"
-              title="Edit"
+              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer transition"
+              title="Edit gear"
             >
-              <Edit2 size={11} />
+              <Edit2 size={13} />
             </button>
 
-            {/* Delete */}
             <button
               onClick={() => {
                 if (confirm(`Remove "${item.name}" from inventory?`)) {
                   deleteEquipment(item.id);
                 }
               }}
-              className="p-1 text-slate-400 hover:text-rose-600 rounded cursor-pointer"
-              title="Delete"
+              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition"
+              title="Delete item"
             >
-              <Trash2 size={11} />
+              <Trash2 size={13} />
             </button>
           </div>
         </div>
 
-        {/* Collapsible Active Loans Drawer */}
+        {/* Collapsible Active Loans Drawer with Fast Return Button */}
         {isExpanded && issuedForThis > 0 && (
-          <div className="mt-1.5 p-2 bg-amber-50/60 rounded-lg border border-amber-200/80 space-y-1 text-xs">
-            <span className="text-[0.6rem] font-bold text-amber-800 uppercase tracking-wider block">
-              Active Student Loans ({itemLoans.length})
-            </span>
-            {itemLoans.map(log => (
-              <div key={log.id} className="flex items-center justify-between text-[0.65rem] bg-white p-1.5 rounded border border-amber-100">
-                <span className="font-bold text-slate-800">{log.borrowerName} ({log.rollNo} • {log.qty}u)</span>
-                <button
-                  onClick={() => {
-                    if (confirm(`Accept return from ${log.borrowerName}?`)) {
-                      returnEquipment(log.id, 'Good Condition', 'Returned via stock desk', log.qty);
-                    }
-                  }}
-                  className="px-1.5 py-0.2 bg-emerald-600 text-white font-bold rounded text-[0.6rem] cursor-pointer"
-                >
-                  Return
-                </button>
-              </div>
-            ))}
+          <div className="mt-2 p-2.5 bg-amber-50/70 rounded-xl border border-amber-200 space-y-2 text-xs">
+            <div className="flex items-center justify-between text-[0.65rem] font-black text-amber-900 uppercase tracking-wider">
+              <span>Active Student Borrowers ({itemLoans.length})</span>
+              <span>Units Out: {issuedForThis}</span>
+            </div>
+            
+            <div className="space-y-1.5">
+              {itemLoans.map(log => (
+                <div key={log.id} className="p-2 bg-white rounded-lg border border-amber-200/80 shadow-2xs space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="font-bold text-slate-900 text-xs block">{log.borrowerName}</span>
+                      <span className="text-[0.62rem] text-slate-500 font-mono">
+                        Roll: {log.rollNo} • {log.branch}
+                      </span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono font-bold text-xs">
+                      {log.qty} unit{log.qty > 1 ? 's' : ''}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[0.62rem]">
+                    <span className="text-slate-400">Issued: {log.issueDate}</span>
+                    <button
+                      onClick={async () => {
+                        if (confirm(`Accept return of ${log.qty}x "${item.name}" from ${log.borrowerName}?`)) {
+                          try {
+                            await returnEquipment(log.id, 'Good Condition', 'Returned at stock desk', log.qty);
+                            showToast(`✓ Accepted return of ${log.qty}x ${item.name} from ${log.borrowerName}`);
+                          } catch (err) {
+                            showToast(err.message || 'Failed to accept return', 'error');
+                          }
+                        }
+                      }}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95"
+                    >
+                      <RotateCcw size={10} />
+                      <span>✓ Accept Return</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -919,26 +1010,97 @@ export default function EquipmentStockTab() {
   };
 
   return (
-    <div className="space-y-3.5 select-none text-slate-800">
+    <div className="space-y-3.5 select-none text-slate-800 relative">
       
+      {/* TOAST NOTIFICATION BANNER */}
+      {toastNotification && (
+        <div className={`p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold transition-all shadow-md animate-in fade-in slide-in-from-top-2 ${
+          toastNotification.type === 'error'
+            ? 'bg-rose-50 border-rose-300 text-rose-800'
+            : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+        }`}>
+          <div className="flex items-center gap-2">
+            {toastNotification.type === 'error' ? (
+              <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+            ) : (
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            )}
+            <span>{toastNotification.text}</span>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setToastNotification(null)}
+            className="p-1 hover:bg-black/5 rounded-lg cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* MOBILE 2-WAY QUICK SWITCH BAR (< md) */}
+      <div className="flex md:hidden items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs gap-1">
+        <button
+          type="button"
+          className="flex-1 py-2 px-2.5 text-xs font-black rounded-lg bg-slate-900 text-white shadow-xs transition flex items-center justify-center gap-1.5 cursor-default"
+        >
+          <Package size={14} className="text-amber-400" />
+          <span>Gear Inventory</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[0.6rem] font-black bg-amber-500 text-slate-950">
+            {equipmentList.length}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab && setActiveTab('equipment-issues')}
+          className="flex-1 py-2 px-2.5 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-white/70 transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+        >
+          <RotateCcw size={14} className="text-amber-500" />
+          <span>Issue & Returns</span>
+          <span className="px-1.5 py-0.2 rounded-full text-[0.6rem] font-bold bg-slate-200 text-slate-700">
+            {equipmentLogs.length}
+          </span>
+        </button>
+      </div>
+
       {/* 1. COMPACT TOP HEADER & QUICK ACTIONS */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-200">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-600 border border-amber-500/20">
             <Package size={16} />
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">
               Stock Inventory
             </h3>
             <span className="px-2 py-0.5 rounded-full text-[0.62rem] font-bold bg-slate-100 text-slate-600 border border-slate-200">
               {totalItemsCount} items • {totalPhysicalUnits} units
             </span>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[0.62rem] font-bold">
+              <Database size={10} className="text-emerald-600" />
+              <span>Supabase Live</span>
+            </span>
           </div>
         </div>
 
         {/* Compact Action Buttons */}
         <div className="flex items-center gap-1.5 flex-wrap">
+          <button
+            onClick={async () => {
+              if (refreshCloudData) {
+                setIsRefreshing(true);
+                await refreshCloudData();
+                setTimeout(() => setIsRefreshing(false), 600);
+              }
+            }}
+            disabled={isRefreshing || cloudSyncStatus === 'syncing'}
+            className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-xs rounded-lg border border-blue-200 shadow-2xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+            title="Fetch fresh inventory stock from Supabase Database"
+          >
+            <RefreshCw size={12} className={isRefreshing || cloudSyncStatus === 'syncing' ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">{isRefreshing || cloudSyncStatus === 'syncing' ? 'Syncing...' : 'Sync Cloud'}</span>
+          </button>
+
           <button
             onClick={() => handleExportCSV()}
             title="Export CSV"
@@ -1629,6 +1791,23 @@ export default function EquipmentStockTab() {
                       <option value="CE">CE</option>
                       <option value="Faculty">Faculty / Staff</option>
                     </select>
+                    {/* Quick branch chips */}
+                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                      {['CSE', 'EE', 'ME', 'CE'].map(b => (
+                        <button
+                          key={b}
+                          type="button"
+                          onClick={() => setQuickIssueData(prev => ({ ...prev, branch: b }))}
+                          className={`px-2 py-0.5 text-[0.6rem] font-bold rounded border transition cursor-pointer ${
+                            quickIssueData.branch === b
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          {b}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 
@@ -1659,6 +1838,19 @@ export default function EquipmentStockTab() {
                       onChange={(e) => setQuickIssueData({ ...quickIssueData, expectedReturn: e.target.value })}
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-medium text-xs focus:outline-none focus:border-amber-500"
                     />
+                    {/* Quick duration buttons */}
+                    <div className="flex items-center gap-1 mt-1 flex-wrap">
+                      {['+2 Hours', '+4 Hours', '6 PM Today'].map(dur => (
+                        <button
+                          key={dur}
+                          type="button"
+                          onClick={() => setQuickIssueData(prev => ({ ...prev, expectedReturn: dur }))}
+                          className="px-1.5 py-0.2 bg-white hover:bg-amber-50 text-amber-900 font-bold text-[0.58rem] rounded border border-amber-200 cursor-pointer"
+                        >
+                          {dur}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
 

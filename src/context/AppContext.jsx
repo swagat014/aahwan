@@ -470,31 +470,48 @@ export function AppProvider({ children }) {
     isCloudLoadedRef.current = true;
     try {
       setCloudSyncStatus('syncing');
+
+      // 1. Fetch latest site_settings first to prevent overwriting concurrently updated fields
+      let existingConfig = {};
+      try {
+        const { data: currentSettings } = await supabase
+          .from('site_settings')
+          .select('config')
+          .eq('id', 'global_config')
+          .single();
+        if (currentSettings?.config) {
+          existingConfig = currentSettings.config;
+        }
+      } catch (fetchErr) {
+        console.warn('Could not read existing config prior to save:', fetchErr);
+      }
+
       const payload = {
-        year: customOverrides.year !== undefined ? customOverrides.year : year,
-        festivalName: customOverrides.festivalName !== undefined ? customOverrides.festivalName : festivalName,
-        collegeName: customOverrides.collegeName !== undefined ? customOverrides.collegeName : collegeName,
-        collegeLocation: customOverrides.collegeLocation !== undefined ? customOverrides.collegeLocation : collegeLocation,
-        helplinePhone: customOverrides.helplinePhone !== undefined ? customOverrides.helplinePhone : helplinePhone,
-        helplineEmail: customOverrides.helplineEmail !== undefined ? customOverrides.helplineEmail : helplineEmail,
-        statSportsCount: customOverrides.statSportsCount !== undefined ? customOverrides.statSportsCount : statSportsCount,
-        statAthletesCount: customOverrides.statAthletesCount !== undefined ? customOverrides.statAthletesCount : statAthletesCount,
-        statStreamsCount: customOverrides.statStreamsCount !== undefined ? customOverrides.statStreamsCount : statStreamsCount,
-        statDaysCount: customOverrides.statDaysCount !== undefined ? customOverrides.statDaysCount : statDaysCount,
-        sports: customOverrides.sports !== undefined ? customOverrides.sports : sports,
-        dignitaries: customOverrides.dignitaries !== undefined ? customOverrides.dignitaries : dignitaries,
-        schedule: customOverrides.schedule !== undefined ? customOverrides.schedule : schedule,
-        leaderboard: customOverrides.leaderboard !== undefined ? customOverrides.leaderboard : leaderboard,
-        galleryPhotos: customOverrides.galleryPhotos !== undefined ? customOverrides.galleryPhotos : galleryPhotos,
-        sportWinners: customOverrides.sportWinners !== undefined ? customOverrides.sportWinners : sportWinners,
-        dailyMedals: customOverrides.dailyMedals !== undefined ? customOverrides.dailyMedals : dailyMedals,
-        teamPointsRule: customOverrides.teamPointsRule !== undefined ? customOverrides.teamPointsRule : teamPointsRule,
-        athleticsPointsRule: customOverrides.athleticsPointsRule !== undefined ? customOverrides.athleticsPointsRule : athleticsPointsRule,
-        branchPointsOverride: customOverrides.branchPointsOverride !== undefined ? customOverrides.branchPointsOverride : branchPointsOverride,
-        equipmentList: customOverrides.equipmentList !== undefined ? customOverrides.equipmentList : equipmentList,
-        equipmentLogs: customOverrides.equipmentLogs !== undefined ? customOverrides.equipmentLogs : equipmentLogs,
-        registrations: customOverrides.registrations !== undefined ? customOverrides.registrations : registrations,
-        teamSquadSizes: customOverrides.teamSquadSizes !== undefined ? customOverrides.teamSquadSizes : teamSquadSizes
+        ...existingConfig,
+        year: customOverrides.year !== undefined ? customOverrides.year : (existingConfig.year || year),
+        festivalName: customOverrides.festivalName !== undefined ? customOverrides.festivalName : (existingConfig.festivalName || festivalName),
+        collegeName: customOverrides.collegeName !== undefined ? customOverrides.collegeName : (existingConfig.collegeName || collegeName),
+        collegeLocation: customOverrides.collegeLocation !== undefined ? customOverrides.collegeLocation : (existingConfig.collegeLocation || collegeLocation),
+        helplinePhone: customOverrides.helplinePhone !== undefined ? customOverrides.helplinePhone : (existingConfig.helplinePhone || helplinePhone),
+        helplineEmail: customOverrides.helplineEmail !== undefined ? customOverrides.helplineEmail : (existingConfig.helplineEmail || helplineEmail),
+        statSportsCount: customOverrides.statSportsCount !== undefined ? customOverrides.statSportsCount : (existingConfig.statSportsCount || statSportsCount),
+        statAthletesCount: customOverrides.statAthletesCount !== undefined ? customOverrides.statAthletesCount : (existingConfig.statAthletesCount || statAthletesCount),
+        statStreamsCount: customOverrides.statStreamsCount !== undefined ? customOverrides.statStreamsCount : (existingConfig.statStreamsCount || statStreamsCount),
+        statDaysCount: customOverrides.statDaysCount !== undefined ? customOverrides.statDaysCount : (existingConfig.statDaysCount || statDaysCount),
+        sports: customOverrides.sports !== undefined ? customOverrides.sports : (existingConfig.sports || sports),
+        dignitaries: customOverrides.dignitaries !== undefined ? customOverrides.dignitaries : (existingConfig.dignitaries || dignitaries),
+        schedule: customOverrides.schedule !== undefined ? customOverrides.schedule : (existingConfig.schedule || schedule),
+        leaderboard: customOverrides.leaderboard !== undefined ? customOverrides.leaderboard : (existingConfig.leaderboard || leaderboard),
+        galleryPhotos: customOverrides.galleryPhotos !== undefined ? customOverrides.galleryPhotos : (existingConfig.galleryPhotos || galleryPhotos),
+        sportWinners: customOverrides.sportWinners !== undefined ? customOverrides.sportWinners : (existingConfig.sportWinners || sportWinners),
+        dailyMedals: customOverrides.dailyMedals !== undefined ? customOverrides.dailyMedals : (existingConfig.dailyMedals || dailyMedals),
+        teamPointsRule: customOverrides.teamPointsRule !== undefined ? customOverrides.teamPointsRule : (existingConfig.teamPointsRule || teamPointsRule),
+        athleticsPointsRule: customOverrides.athleticsPointsRule !== undefined ? customOverrides.athleticsPointsRule : (existingConfig.athleticsPointsRule || athleticsPointsRule),
+        branchPointsOverride: customOverrides.branchPointsOverride !== undefined ? customOverrides.branchPointsOverride : (existingConfig.branchPointsOverride || branchPointsOverride),
+        equipmentList: customOverrides.equipmentList !== undefined ? customOverrides.equipmentList : (existingConfig.equipmentList || equipmentList),
+        equipmentLogs: customOverrides.equipmentLogs !== undefined ? customOverrides.equipmentLogs : (existingConfig.equipmentLogs || equipmentLogs),
+        registrations: customOverrides.registrations !== undefined ? customOverrides.registrations : (existingConfig.registrations || registrations),
+        teamSquadSizes: customOverrides.teamSquadSizes !== undefined ? customOverrides.teamSquadSizes : (existingConfig.teamSquadSizes || teamSquadSizes)
       };
 
       const { error } = await supabase.from('site_settings').upsert({
@@ -605,10 +622,12 @@ export function AppProvider({ children }) {
         if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
           setEquipmentList(cfg.equipmentList);
           localStorage.setItem('aahwan_equipment', JSON.stringify(cfg.equipmentList));
+          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(cfg.equipmentList));
         }
         if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
           setEquipmentLogs(cfg.equipmentLogs);
           localStorage.setItem('aahwan_equipment_logs', JSON.stringify(cfg.equipmentLogs));
+          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(cfg.equipmentLogs));
         }
         if (cfg.teamSquadSizes && typeof cfg.teamSquadSizes === 'object') {
           const mergedSizes = { ...DEFAULT_TEAM_SQUAD_SIZES, ...cfg.teamSquadSizes };
@@ -784,8 +803,16 @@ export function AppProvider({ children }) {
             localStorage.setItem('aahwan_branch_points', JSON.stringify(cfg.branchPointsOverride));
             localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(cfg.branchPointsOverride));
           }
-          if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) setEquipmentList(cfg.equipmentList);
-          if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) setEquipmentLogs(cfg.equipmentLogs);
+          if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
+            setEquipmentList(cfg.equipmentList);
+            localStorage.setItem('aahwan_equipment', JSON.stringify(cfg.equipmentList));
+            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(cfg.equipmentList));
+          }
+          if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
+            setEquipmentLogs(cfg.equipmentLogs);
+            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(cfg.equipmentLogs));
+            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(cfg.equipmentLogs));
+          }
           if (cfg.teamSquadSizes && typeof cfg.teamSquadSizes === 'object') {
             const mergedSizes = { ...DEFAULT_TEAM_SQUAD_SIZES, ...cfg.teamSquadSizes };
             setTeamSquadSizes(mergedSizes);
@@ -1633,33 +1660,72 @@ export function AppProvider({ children }) {
     });
   };
 
-  // Equipment Inventory Handlers
-  const addEquipment = (item) => {
-    const newItem = { ...item, id: `eq-${Date.now()}` };
+  // Equipment Inventory Handlers (Actively synced with Supabase Database)
+  const addEquipment = async (item) => {
+    const newItem = {
+      id: item.id || `eq-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      name: (item.name || '').trim(),
+      category: item.category || 'General',
+      totalQty: Number(item.totalQty) || 1,
+      condition: item.condition || 'Good Condition',
+      location: item.location || 'Main Sports Store',
+      notes: item.notes || ''
+    };
+
+    let updatedList = [];
     setEquipmentList(prev => {
-      const updated = [newItem, ...prev];
-      localStorage.setItem('aahwan_equipment', JSON.stringify(updated));
-      return updated;
+      updatedList = [newItem, ...prev.filter(e => e.id !== newItem.id)];
+      localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
+      localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
+      return updatedList;
     });
+
+    try {
+      await saveToCloud({ equipmentList: updatedList });
+    } catch (e) {
+      console.warn('saveToCloud equipmentList error:', e);
+    }
+
+    return { success: true, item: newItem };
   };
 
-  const updateEquipment = (id, updatedData) => {
+  const updateEquipment = async (id, updatedData) => {
+    let updatedList = [];
     setEquipmentList(prev => {
-      const updated = prev.map(e => e.id === id ? { ...e, ...updatedData } : e);
-      localStorage.setItem('aahwan_equipment', JSON.stringify(updated));
-      return updated;
+      updatedList = prev.map(e => e.id === id ? { ...e, ...updatedData } : e);
+      localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
+      localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
+      return updatedList;
     });
+
+    try {
+      await saveToCloud({ equipmentList: updatedList });
+    } catch (e) {
+      console.warn('saveToCloud equipmentList error:', e);
+    }
+
+    return { success: true };
   };
 
-  const deleteEquipment = (id) => {
+  const deleteEquipment = async (id) => {
+    let updatedList = [];
     setEquipmentList(prev => {
-      const updated = prev.filter(e => e.id !== id);
-      localStorage.setItem('aahwan_equipment', JSON.stringify(updated));
-      return updated;
+      updatedList = prev.filter(e => e.id !== id);
+      localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
+      localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
+      return updatedList;
     });
+
+    try {
+      await saveToCloud({ equipmentList: updatedList });
+    } catch (e) {
+      console.warn('saveToCloud equipmentList error:', e);
+    }
+
+    return { success: true };
   };
 
-  const issueEquipment = (data) => {
+  const issueEquipment = async (data) => {
     const now = new Date();
     const formattedNow = now.toLocaleDateString('en-IN', {
       day: '2-digit',
@@ -1673,14 +1739,15 @@ export function AppProvider({ children }) {
 
     const newLog = {
       ...data,
-      id: `iss-${Date.now().toString().slice(-4)}`,
+      id: data.id || `iss-${Date.now().toString().slice(-6)}`,
       status: 'issued',
+      qty: Number(data.qty) || 1,
       issueDate: data.issueDate || formattedNow,
       issueTimestamp: data.issueTimestamp || now.toISOString(),
       expectedReturn: data.expectedReturn || '',
       expectedReturnTimestamp: data.expectedReturnTimestamp || '',
       borrowerPhone: data.borrowerPhone || '',
-      purpose: data.purpose || 'General Sports Session',
+      purpose: data.purpose || 'Practice Match & Training',
       issueCondition: data.issueCondition || 'Good Condition',
       returnedCount: 0,
       returnDate: null,
@@ -1688,27 +1755,39 @@ export function AppProvider({ children }) {
       returnCondition: null,
       returnNotes: null
     };
+
+    let updatedLogs = [];
     setEquipmentLogs(prev => {
-      const updated = [newLog, ...prev];
-      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
-      return updated;
+      updatedLogs = [newLog, ...prev.filter(l => l.id !== newLog.id)];
+      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
+      localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
+      return updatedLogs;
     });
+
+    try {
+      await saveToCloud({ equipmentLogs: updatedLogs });
+    } catch (e) {
+      console.warn('saveToCloud equipmentLogs error:', e);
+    }
+
+    return { success: true, log: newLog };
   };
 
-  const returnEquipment = (logId, condition, notes, returnQty, customReturnDate) => {
-    setEquipmentLogs(prev => {
-      const now = new Date();
-      const formattedNow = customReturnDate || (now.toLocaleDateString('en-IN', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric'
-      }) + ', ' + now.toLocaleTimeString('en-IN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
-      }));
+  const returnEquipment = async (logId, condition, notes, returnQty, customReturnDate) => {
+    const now = new Date();
+    const formattedNow = customReturnDate || (now.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    }) + ', ' + now.toLocaleTimeString('en-IN', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    }));
 
-      const updated = prev.map(l => {
+    let updatedLogs = [];
+    setEquipmentLogs(prev => {
+      updatedLogs = prev.map(l => {
         if (l.id === logId) {
           const totalQtyIssued = Number(l.qty) || 1;
           const numReturned = Math.min(totalQtyIssued, Number(returnQty) || totalQtyIssued);
@@ -1738,17 +1817,36 @@ export function AppProvider({ children }) {
         }
         return l;
       });
-      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
-      return updated;
+      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
+      localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
+      return updatedLogs;
     });
+
+    try {
+      await saveToCloud({ equipmentLogs: updatedLogs });
+    } catch (e) {
+      console.warn('saveToCloud equipmentLogs error:', e);
+    }
+
+    return { success: true };
   };
 
-  const deleteEquipmentLog = (logId) => {
+  const deleteEquipmentLog = async (logId) => {
+    let updatedLogs = [];
     setEquipmentLogs(prev => {
-      const updated = prev.filter(l => l.id !== logId);
-      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
-      return updated;
+      updatedLogs = prev.filter(l => l.id !== logId);
+      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
+      localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
+      return updatedLogs;
     });
+
+    try {
+      await saveToCloud({ equipmentLogs: updatedLogs });
+    } catch (e) {
+      console.warn('saveToCloud equipmentLogs error:', e);
+    }
+
+    return { success: true };
   };
 
   const handlePhotoUpload = async (file, folder = 'dignitaries') => {

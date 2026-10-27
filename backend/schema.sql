@@ -183,6 +183,77 @@ CREATE TABLE IF NOT EXISTS public.registrations (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- --------------------------------------------------------------------
+-- 9. EQUIPMENT INVENTORY & ISSUE/RETURN REGISTERS TABLE
+-- --------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS awahaan.equipment (
+    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    total_qty INT NOT NULL DEFAULT 1,
+    condition TEXT DEFAULT 'Good Condition',
+    location TEXT DEFAULT 'Main Sports Store',
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.equipment (
+    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    total_qty INT NOT NULL DEFAULT 1,
+    condition TEXT DEFAULT 'Good Condition',
+    location TEXT DEFAULT 'Main Sports Store',
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS awahaan.equipment_logs (
+    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    equipment_id TEXT NOT NULL,
+    equipment_name TEXT NOT NULL,
+    category TEXT,
+    borrower_name TEXT NOT NULL,
+    roll_no TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    borrower_phone TEXT,
+    qty INT NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'issued',
+    issue_date TEXT NOT NULL,
+    issue_timestamp TIMESTAMPTZ DEFAULT NOW(),
+    expected_return TEXT,
+    expected_return_timestamp TIMESTAMPTZ,
+    returned_count INT DEFAULT 0,
+    return_date TEXT,
+    return_timestamp TIMESTAMPTZ,
+    return_condition TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.equipment_logs (
+    id TEXT PRIMARY KEY DEFAULT uuid_generate_v4()::text,
+    equipment_id TEXT NOT NULL,
+    equipment_name TEXT NOT NULL,
+    category TEXT,
+    borrower_name TEXT NOT NULL,
+    roll_no TEXT NOT NULL,
+    branch TEXT NOT NULL,
+    borrower_phone TEXT,
+    qty INT NOT NULL DEFAULT 1,
+    status TEXT NOT NULL DEFAULT 'issued',
+    issue_date TEXT NOT NULL,
+    issue_timestamp TIMESTAMPTZ DEFAULT NOW(),
+    expected_return TEXT,
+    expected_return_timestamp TIMESTAMPTZ,
+    returned_count INT DEFAULT 0,
+    return_date TEXT,
+    return_timestamp TIMESTAMPTZ,
+    return_condition TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- ====================================================================
 -- ROW LEVEL SECURITY (RLS) & POLICIES FOR BOTH SCHEMAS
 -- ====================================================================
@@ -194,6 +265,8 @@ ALTER TABLE awahaan.schedule ENABLE ROW LEVEL SECURITY;
 ALTER TABLE awahaan.leaderboard ENABLE ROW LEVEL SECURITY;
 ALTER TABLE awahaan.gallery ENABLE ROW LEVEL SECURITY;
 ALTER TABLE awahaan.registrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE awahaan.equipment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE awahaan.equipment_logs ENABLE ROW LEVEL SECURITY;
 
 ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sports ENABLE ROW LEVEL SECURITY;
@@ -202,6 +275,8 @@ ALTER TABLE public.schedule ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leaderboard ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.gallery ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.registrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.equipment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.equipment_logs ENABLE ROW LEVEL SECURITY;
 
 -- Grant Full Read/Write Policies
 CREATE POLICY "Public access awahaan site_settings" ON awahaan.site_settings FOR ALL USING (true) WITH CHECK (true);
@@ -211,6 +286,8 @@ CREATE POLICY "Public access awahaan schedule" ON awahaan.schedule FOR ALL USING
 CREATE POLICY "Public access awahaan leaderboard" ON awahaan.leaderboard FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access awahaan gallery" ON awahaan.gallery FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access awahaan registrations" ON awahaan.registrations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access awahaan equipment" ON awahaan.equipment FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access awahaan equipment_logs" ON awahaan.equipment_logs FOR ALL USING (true) WITH CHECK (true);
 
 CREATE POLICY "Public access public site_settings" ON public.site_settings FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access public sports" ON public.sports FOR ALL USING (true) WITH CHECK (true);
@@ -219,6 +296,8 @@ CREATE POLICY "Public access public schedule" ON public.schedule FOR ALL USING (
 CREATE POLICY "Public access public leaderboard" ON public.leaderboard FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access public gallery" ON public.gallery FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public access public registrations" ON public.registrations FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access public equipment" ON public.equipment FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Public access public equipment_logs" ON public.equipment_logs FOR ALL USING (true) WITH CHECK (true);
 
 -- Enable Realtime for site_settings & registrations
 ALTER PUBLICATION supabase_realtime ADD TABLE public.site_settings;

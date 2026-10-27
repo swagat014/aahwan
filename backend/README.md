@@ -15,13 +15,15 @@ This folder contains the complete SQL database migration script and instructions
 5. Click **Run** (or press `Ctrl + Enter`).
 
 This script creates:
-- `site_settings` (Global config, festival name, year, stats counters)
+- `site_settings` (Global config, festival name, year, stats counters, equipment inventory & logs)
 - `sports` (Sports list, categories, rules, images)
 - `dignitaries` (Chief guests, patrons, coordinators)
 - `schedule` (Daily events & fixtures)
 - `leaderboard` (Branch standings & medal tallies for CSE, EE, ME, CE)
 - `gallery` (Photo highlights)
 - `registrations` (Student event registrations)
+- `equipment` (Sports gear inventory, quantities, locations, and condition)
+- `equipment_logs` (Live equipment issue and return records with borrower roll no, phone, and return status)
 - Public RLS read/write permissions & Supabase Realtime subscriptions.
 
 ---
