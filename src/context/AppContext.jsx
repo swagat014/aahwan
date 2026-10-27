@@ -12,6 +12,15 @@ function sanitizePhotoUrl(url, fallback = '/assets/images/hero_sports_banner_178
   return url;
 }
 
+function getDeletedRegIds() {
+  try {
+    const saved = localStorage.getItem('aahwan_deleted_reg_ids');
+    return saved ? new Set(JSON.parse(saved)) : new Set();
+  } catch (e) {
+    return new Set();
+  }
+}
+
 function normalizeDignitariesStructure(parsed) {
   if (!parsed) return initialDignitaries;
 
@@ -615,52 +624,69 @@ export function AppProvider({ children }) {
         .select('*')
         .order('created_at', { ascending: false });
 
-      let parsedCloudRegs = [];
-      if (!regError && Array.isArray(cloudRegs) && cloudRegs.length > 0) {
-        parsedCloudRegs = cloudRegs.map(r => {
-          const rawEvents = safeParseEvents(r.events);
-          const rosterMarker = rawEvents.find(e => typeof e === 'string' && e.startsWith('TEAM_ROSTER:'));
-          let teamPlayers = [];
-          if (rosterMarker) {
-            try {
-              teamPlayers = JSON.parse(rosterMarker.slice(12));
-            } catch (err) {
-              console.warn('Failed to parse team roster:', err);
-            }
-          }
-          const displayEvents = rawEvents.filter(e => typeof e === 'string' && !e.startsWith('TEAM_ROSTER:'));
-          const isTeam = teamPlayers.length > 0;
+      const deletedSet = getDeletedRegIds();
 
-          return {
-            id: r.id,
-            rollNo: r.roll_no || '',
-            name: r.name || '',
-            branch: r.branch || 'General',
-            year: r.year || '1st Year',
-            gender: r.gender || 'Boys Division',
-            phone: r.phone || '',
-            email: r.email || '',
-            events: displayEvents,
-            registrationType: isTeam ? 'team' : 'individual',
-            captainName: isTeam ? r.name : '',
-            captainPhone: isTeam ? r.phone : '',
-            captainRollNo: isTeam ? r.roll_no : '',
-            teamSport: isTeam ? displayEvents[0] || '' : '',
-            teamPlayers,
-            timestamp: r.created_at || new Date().toISOString()
-          };
-        });
+      let parsedCloudRegs = [];
+      if (!regError && Array.isArray(cloudRegs)) {
+        parsedCloudRegs = cloudRegs
+          .filter(r => r && !deletedSet.has(r.id) && !deletedSet.has(r.roll_no))
+          .map(r => {
+            const rawEvents = safeParseEvents(r.events);
+            const rosterMarker = rawEvents.find(e => typeof e === 'string' && e.startsWith('TEAM_ROSTER:'));
+            let teamPlayers = [];
+            if (rosterMarker) {
+              try {
+                teamPlayers = JSON.parse(rosterMarker.slice(12));
+              } catch (err) {
+                console.warn('Failed to parse team roster:', err);
+              }
+            }
+            const displayEvents = rawEvents.filter(e => typeof e === 'string' && !e.startsWith('TEAM_ROSTER:'));
+            const isTeam = teamPlayers.length > 0;
+
+            return {
+              id: r.id,
+              rollNo: r.roll_no || '',
+              name: r.name || '',
+              branch: r.branch || 'General',
+              year: r.year || '1st Year',
+              gender: r.gender || 'Boys Division',
+              phone: r.phone || '',
+              email: r.email || '',
+              events: displayEvents,
+              registrationType: isTeam ? 'team' : 'individual',
+              captainName: isTeam ? r.name : '',
+              captainPhone: isTeam ? r.phone : '',
+              captainRollNo: isTeam ? r.roll_no : '',
+              teamSport: isTeam ? displayEvents[0] || '' : '',
+              teamPlayers,
+              timestamp: r.created_at || new Date().toISOString()
+            };
+          });
       }
 
-      // Check fallback or merge with site_settings config.registrations
+      // Check fallback from site_settings config.registrations (filtering out any deleted ones)
       let combinedRegs = parsedCloudRegs;
       if (cloudConfig?.registrations && Array.isArray(cloudConfig.registrations)) {
-        if (parsedCloudRegs.length === 0) {
-          combinedRegs = cloudConfig.registrations;
+        const cleanedSiteRegs = cloudConfig.registrations.filter(r => {
+          if (!r) return false;
+          if (deletedSet.has(r.id)) return false;
+          const rRoll = r.rollNo || r.roll_no;
+          if (rRoll && deletedSet.has(rRoll)) return false;
+          return true;
+        });
+
+        if (parsedCloudRegs.length === 0 && regError) {
+          // Only fallback to site_settings if registrations table failed to load
+          combinedRegs = cleanedSiteRegs;
         } else {
-          // Merge any backup registrations not yet in relational table
+          // Merge any non-deleted registrations not yet in registrations table
           const existingIds = new Set(parsedCloudRegs.map(r => r.id));
-          const additions = cloudConfig.registrations.filter(r => r && r.id && !existingIds.has(r.id));
+          const existingRolls = new Set(parsedCloudRegs.map(r => r.rollNo || r.roll_no).filter(Boolean));
+          const additions = cleanedSiteRegs.filter(r => 
+            r && r.id && !existingIds.has(r.id) && 
+            !(r.rollNo && existingRolls.has(r.rollNo))
+          );
           if (additions.length > 0) {
             combinedRegs = [...parsedCloudRegs, ...additions];
           }
@@ -819,8 +845,14 @@ export function AppProvider({ children }) {
             return updated;
           });
         } else if (payload.eventType === 'DELETE' && payload.old) {
+          const deletedId = payload.old.id;
+          const deletedRoll = payload.old.roll_no;
           setRegistrations(prev => {
-            const updated = prev.filter(r => r.id !== payload.old.id);
+            const updated = prev.filter(r => {
+              if (deletedId && r.id === deletedId) return false;
+              if (deletedRoll && (r.rollNo === deletedRoll || r.roll_no === deletedRoll)) return false;
+              return true;
+            });
             localStorage.setItem('aahwan_registrations', JSON.stringify(updated));
             localStorage.setItem('AWAHAAN_registrations', JSON.stringify(updated));
             return updated;
@@ -1366,32 +1398,155 @@ export function AppProvider({ children }) {
     return newReg;
   };
 
-  const deleteRegistration = async (studentId) => {
+  const deleteRegistration = async (studentOrId, optRollNo = '', optName = '') => {
+    const studentId = typeof studentOrId === 'object' ? (studentOrId?.id || '') : String(studentOrId || '').trim();
+    const studentRollNo = typeof studentOrId === 'object' 
+      ? String(studentOrId?.rollNo || studentOrId?.roll_no || studentOrId?.captainRollNo || '').trim() 
+      : String(optRollNo || '').trim();
+    const studentName = typeof studentOrId === 'object' 
+      ? String(studentOrId?.name || studentOrId?.captainName || '').trim() 
+      : String(optName || '').trim();
+
+    if (!studentId && !studentRollNo && !studentName) {
+      console.warn('deleteRegistration: no identifier provided');
+      return { success: false, error: 'No identifier provided' };
+    }
+
+    // 1. Mark in persistent deleted IDs set so background polling never re-adds it
+    try {
+      const deletedSet = getDeletedRegIds();
+      if (studentId) deletedSet.add(studentId);
+      if (studentRollNo) deletedSet.add(studentRollNo);
+      if (studentName && studentRollNo) deletedSet.add(`${studentName}::${studentRollNo}`);
+      localStorage.setItem('aahwan_deleted_reg_ids', JSON.stringify(Array.from(deletedSet)));
+    } catch (e) {
+      console.warn('Failed to cache deleted registration:', e);
+    }
+
+    // 2. Immediately update local state and localStorage
+    let nextRegs = [];
     setRegistrations(prev => {
-      const updated = prev.filter(r => r.id !== studentId);
-      localStorage.setItem('aahwan_registrations', JSON.stringify(updated));
-      localStorage.setItem('AWAHAAN_registrations', JSON.stringify(updated));
-      return updated;
+      nextRegs = prev.filter(r => {
+        if (studentId && r.id === studentId) return false;
+        if (studentRollNo && (r.rollNo === studentRollNo || r.roll_no === studentRollNo || r.captainRollNo === studentRollNo)) return false;
+        if (studentName && studentRollNo && (r.name === studentName || r.captainName === studentName) && (r.rollNo === studentRollNo || r.roll_no === studentRollNo)) return false;
+        return true;
+      });
+      localStorage.setItem('aahwan_registrations', JSON.stringify(nextRegs));
+      localStorage.setItem('AWAHAAN_registrations', JSON.stringify(nextRegs));
+      return nextRegs;
     });
 
+    // 3. Synchronize deletion to Supabase Cloud
     if (supabase) {
       try {
-        const { error } = await supabase.from('registrations').delete().eq('id', studentId);
-        if (error) console.warn('Supabase delete registration notice:', error.message);
+        if (studentId) {
+          const { error: idErr } = await supabase.from('registrations').delete().eq('id', studentId);
+          if (idErr) console.warn('Supabase delete by id error:', idErr.message);
+        }
+        if (studentRollNo) {
+          const { error: rollErr } = await supabase.from('registrations').delete().eq('roll_no', studentRollNo);
+          if (rollErr) console.warn('Supabase delete by roll_no error:', rollErr.message);
+        }
 
-        // Also remove from site_settings backup
+        // Atomically update site_settings.config.registrations
         const { data: currentSettings } = await supabase.from('site_settings').select('*').eq('id', 'global_config').single();
-        if (currentSettings?.config && Array.isArray(currentSettings.config.registrations)) {
-          const updatedList = currentSettings.config.registrations.filter(r => r.id !== studentId);
-          await supabase.from('site_settings').update({
-            config: { ...currentSettings.config, registrations: updatedList },
+        if (currentSettings?.config) {
+          const existingList = Array.isArray(currentSettings.config.registrations) ? currentSettings.config.registrations : [];
+          const purgedList = existingList.filter(r => {
+            if (studentId && r.id === studentId) return false;
+            if (studentRollNo && (r.rollNo === studentRollNo || r.roll_no === studentRollNo || r.captainRollNo === studentRollNo)) return false;
+            if (studentName && studentRollNo && (r.name === studentName || r.captainName === studentName)) return false;
+            return true;
+          });
+
+          await supabase.from('site_settings').upsert({
+            id: 'global_config',
+            config: { ...currentSettings.config, registrations: purgedList },
             updated_at: new Date().toISOString()
-          }).eq('id', 'global_config');
+          });
         }
       } catch (err) {
         console.warn('Supabase delete registration exception:', err);
       }
     }
+
+    return { success: true };
+  };
+
+  const bulkDeleteRegistrations = async (studentsOrIds = []) => {
+    if (!studentsOrIds || studentsOrIds.length === 0) return { success: true };
+
+    const targets = studentsOrIds.map(item => {
+      if (typeof item === 'object') {
+        return {
+          id: item.id || '',
+          rollNo: item.rollNo || item.roll_no || item.captainRollNo || '',
+          name: item.name || item.captainName || ''
+        };
+      }
+      return { id: String(item).trim(), rollNo: '', name: '' };
+    });
+
+    const targetIds = new Set(targets.map(t => t.id).filter(Boolean));
+    const targetRolls = new Set(targets.map(t => t.rollNo).filter(Boolean));
+
+    // Cache in persistent deleted IDs set
+    try {
+      const deletedSet = getDeletedRegIds();
+      targetIds.forEach(id => deletedSet.add(id));
+      targetRolls.forEach(roll => deletedSet.add(roll));
+      localStorage.setItem('aahwan_deleted_reg_ids', JSON.stringify(Array.from(deletedSet)));
+    } catch (e) {
+      console.warn('Failed to cache bulk deleted ids:', e);
+    }
+
+    // Filter local state
+    let nextRegs = [];
+    setRegistrations(prev => {
+      nextRegs = prev.filter(r => {
+        if (r.id && targetIds.has(r.id)) return false;
+        const rRoll = r.rollNo || r.roll_no || r.captainRollNo;
+        if (rRoll && targetRolls.has(rRoll)) return false;
+        return true;
+      });
+      localStorage.setItem('aahwan_registrations', JSON.stringify(nextRegs));
+      localStorage.setItem('AWAHAAN_registrations', JSON.stringify(nextRegs));
+      return nextRegs;
+    });
+
+    // Delete in Supabase
+    if (supabase) {
+      try {
+        if (targetIds.size > 0) {
+          await supabase.from('registrations').delete().in('id', Array.from(targetIds));
+        }
+        if (targetRolls.size > 0) {
+          await supabase.from('registrations').delete().in('roll_no', Array.from(targetRolls));
+        }
+
+        const { data: currentSettings } = await supabase.from('site_settings').select('*').eq('id', 'global_config').single();
+        if (currentSettings?.config) {
+          const existingList = Array.isArray(currentSettings.config.registrations) ? currentSettings.config.registrations : [];
+          const purgedList = existingList.filter(r => {
+            if (r.id && targetIds.has(r.id)) return false;
+            const rRoll = r.rollNo || r.roll_no || r.captainRollNo;
+            if (rRoll && targetRolls.has(rRoll)) return false;
+            return true;
+          });
+
+          await supabase.from('site_settings').upsert({
+            id: 'global_config',
+            config: { ...currentSettings.config, registrations: purgedList },
+            updated_at: new Date().toISOString()
+          });
+        }
+      } catch (err) {
+        console.warn('Supabase bulk delete exception:', err);
+      }
+    }
+
+    return { success: true };
   };
 
   // Dignitaries CRUD Handlers (Synchronizes tiers and legacy aliases, saves to localStorage and Cloud immediately)
@@ -1625,7 +1780,7 @@ export function AppProvider({ children }) {
       branchPointsOverride, updateBranchScore, resetBranchScore, resetAllBranchScores, setAllPointsToZero,
       sportWinners, setSportWinners, assignSportWinner, getStandings, findSportWinner, updateSportCategory,
       galleryPhotos, addGalleryPhoto, deleteGalleryPhoto,
-      registrations, addRegistration, deleteRegistration,
+      registrations, addRegistration, deleteRegistration, bulkDeleteRegistrations,
       equipmentList, addEquipment, updateEquipment, deleteEquipment,
       equipmentLogs, issueEquipment, returnEquipment, deleteEquipmentLog,
       viewMode, setViewMode,

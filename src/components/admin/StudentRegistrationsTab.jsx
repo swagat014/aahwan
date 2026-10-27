@@ -4,12 +4,21 @@ import {
   Users, Trash2, Printer, Search, Filter, CheckCircle, BookOpen, 
   ShieldCheck, Mail, Phone, UserCheck, Calendar, Download, X,
   User, Sparkles, ChevronRight, GraduationCap, RefreshCw, Database,
-  Award, Eye
+  Award, Eye, AlertTriangle, CheckSquare, Square, Loader2
 } from 'lucide-react';
 import PrintableRosterModal from './PrintableRosterModal';
 
 export default function StudentRegistrationsTab() {
-  const { registrations, deleteRegistration, sports, refreshCloudData, cloudSyncStatus, lastSyncedTime } = useApp();
+  const { 
+    registrations, 
+    deleteRegistration, 
+    bulkDeleteRegistrations, 
+    sports, 
+    refreshCloudData, 
+    cloudSyncStatus, 
+    lastSyncedTime 
+  } = useApp();
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedSportFilter, setSelectedSportFilter] = useState('all');
@@ -18,6 +27,13 @@ export default function StudentRegistrationsTab() {
   const [selectedTypeFilter, setSelectedTypeFilter] = useState('all'); // 'all' | 'individual' | 'team'
   const [printSportTitle, setPrintSportTitle] = useState(null);
   const [viewingTeamRoster, setViewingTeamRoster] = useState(null);
+
+  // Multi-select & Deletion States
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [deletingId, setDeletingId] = useState(null);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [deleteConfirmModal, setDeleteConfirmModal] = useState(null); // { type: 'single', student } | { type: 'bulk' } | null
+  const [toastNotification, setToastNotification] = useState(null); // { type: 'success' | 'error', text: '' }
 
   // Auto-fetch fresh registrations directly from the database on mount and poll every 15s
   useEffect(() => {
@@ -101,6 +117,75 @@ export default function StudentRegistrationsTab() {
     setSelectedTypeFilter('all');
   };
 
+  // Toast Helper
+  const showToast = (text, type = 'success') => {
+    setToastNotification({ text, type });
+    setTimeout(() => {
+      setToastNotification(prev => (prev?.text === text ? null : prev));
+    }, 4500);
+  };
+
+  // Multi-Selection Logic
+  const filteredIds = useMemo(() => filteredRegistrations.map(r => r.id), [filteredRegistrations]);
+  const isAllFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedIds.includes(id));
+
+  const handleToggleSelectAll = () => {
+    if (isAllFilteredSelected) {
+      setSelectedIds(prev => prev.filter(id => !filteredIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...filteredIds])));
+    }
+  };
+
+  const handleToggleSelectOne = (id) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  // Execute Single Delete
+  const handleExecuteSingleDelete = async (student) => {
+    if (!student) return;
+    const targetIdentifier = student.id || student.rollNo;
+    setDeletingId(targetIdentifier);
+    try {
+      const res = await deleteRegistration(student);
+      if (res && res.error) {
+        showToast(`Deletion failed: ${res.error}`, 'error');
+      } else {
+        setSelectedIds(prev => prev.filter(id => id !== student.id && id !== student.rollNo));
+        showToast(`Registration for ${student.name || 'athlete'} (${student.rollNo || ''}) permanently removed.`, 'success');
+      }
+    } catch (err) {
+      showToast(err.message || 'Error deleting registration', 'error');
+    } finally {
+      setDeletingId(null);
+      setDeleteConfirmModal(null);
+    }
+  };
+
+  // Execute Bulk Delete
+  const handleExecuteBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    setIsBulkDeleting(true);
+    try {
+      const targets = registrations.filter(r => selectedIds.includes(r.id) || selectedIds.includes(r.rollNo));
+      const count = targets.length || selectedIds.length;
+      await bulkDeleteRegistrations(targets.length > 0 ? targets : selectedIds);
+      setSelectedIds([]);
+      showToast(`Successfully deleted ${count} athlete registration(s) from database.`, 'success');
+    } catch (err) {
+      showToast(err.message || 'Bulk deletion error', 'error');
+    } finally {
+      setIsBulkDeleting(false);
+      setDeleteConfirmModal(null);
+    }
+  };
+
   // CSV Export for Student Athletes & Team Rosters
   const handleExportCSV = () => {
     const headers = [
@@ -153,8 +238,72 @@ export default function StudentRegistrationsTab() {
   };
 
   return (
-    <div className="space-y-3.5 select-none text-slate-800">
+    <div className="space-y-3.5 select-none text-slate-800 relative">
       
+      {/* TOAST NOTIFICATION BANNER */}
+      {toastNotification && (
+        <div className={`p-3 rounded-2xl border flex items-center justify-between gap-3 text-xs font-bold transition-all shadow-md animate-in fade-in slide-in-from-top-2 ${
+          toastNotification.type === 'error'
+            ? 'bg-rose-50 border-rose-300 text-rose-800'
+            : 'bg-emerald-50 border-emerald-300 text-emerald-800'
+        }`}>
+          <div className="flex items-center gap-2">
+            {toastNotification.type === 'error' ? (
+              <AlertTriangle size={16} className="text-rose-600 shrink-0" />
+            ) : (
+              <CheckCircle size={16} className="text-emerald-600 shrink-0" />
+            )}
+            <span>{toastNotification.text}</span>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setToastNotification(null)}
+            className="p-1 hover:bg-black/5 rounded-lg cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* STICKY BULK ACTION BAR */}
+      {selectedIds.length > 0 && (
+        <div className="sticky top-2 z-30 bg-slate-900 text-white p-3 rounded-2xl shadow-xl border border-slate-700 flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-2.5">
+            <span className="w-6 h-6 rounded-lg bg-blue-600 text-white font-mono font-black text-xs flex items-center justify-center">
+              {selectedIds.length}
+            </span>
+            <div>
+              <span className="text-xs font-black tracking-tight block">
+                {selectedIds.length} Athlete{selectedIds.length > 1 ? 's' : ''} Selected
+              </span>
+              <span className="text-[0.65rem] text-slate-400">
+                Bulk delete will remove records from live Supabase DB
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleClearSelection}
+              className="px-3 py-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-xl text-xs font-bold transition cursor-pointer"
+            >
+              Deselect All
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setDeleteConfirmModal({ type: 'bulk' })}
+              disabled={isBulkDeleting}
+              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-xs font-black shadow-md flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+            >
+              <Trash2 size={13} />
+              <span>Delete Selected ({selectedIds.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 1. COMPACT TELEMETRY & ACTIONS HEADER */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-4 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -355,17 +504,36 @@ export default function StudentRegistrationsTab() {
             const isBoys = student.gender === 'Boys Division';
             const isTeam = student.registrationType === 'team' || Boolean(student.teamPlayers && student.teamPlayers.length > 0);
             const squadCount = student.teamPlayers ? student.teamPlayers.length : 12;
+            const isSelected = selectedIds.includes(student.id);
+            const isTargetDeleting = deletingId === (student.id || student.rollNo);
 
             return (
               <div 
                 key={student.id} 
                 className={`bg-white border rounded-2xl p-3 shadow-xs space-y-2.5 transition-all ${
-                  isTeam ? 'border-amber-300 ring-1 ring-amber-400/20' : 'border-slate-200/90'
+                  isSelected 
+                    ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20' 
+                    : isTeam ? 'border-amber-300 ring-1 ring-amber-400/20' : 'border-slate-200/90'
                 }`}
               >
-                {/* Card Top Row */}
+                {/* Card Top Row with Selection Checkbox & Actions */}
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    
+                    {/* Multi-select checkbox */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSelectOne(student.id)}
+                      className="text-slate-400 hover:text-blue-600 cursor-pointer p-0.5"
+                      title={isSelected ? "Deselect athlete" : "Select athlete"}
+                    >
+                      {isSelected ? (
+                        <CheckSquare size={17} className="text-blue-600" />
+                      ) : (
+                        <Square size={17} className="text-slate-300 hover:text-slate-500" />
+                      )}
+                    </button>
+
                     <span className="font-mono font-black text-[0.68rem] text-blue-700 bg-blue-50/80 px-2 py-0.5 rounded-lg border border-blue-200/60">
                       {student.rollNo}
                     </span>
@@ -390,16 +558,19 @@ export default function StudentRegistrationsTab() {
                     </span>
                   </div>
 
+                  {/* Single Delete Action Trigger */}
                   <button
-                    onClick={() => {
-                      if (window.confirm(`Remove registration for ${student.name} (${student.rollNo})?`)) {
-                        deleteRegistration(student.id);
-                      }
-                    }}
-                    className="text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                    title="Delete registration"
+                    type="button"
+                    onClick={() => setDeleteConfirmModal({ type: 'single', student })}
+                    disabled={isTargetDeleting}
+                    className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50"
+                    title={`Delete registration for ${student.name}`}
                   >
-                    <Trash2 size={14} />
+                    {isTargetDeleting ? (
+                      <Loader2 size={15} className="animate-spin text-rose-600" />
+                    ) : (
+                      <Trash2 size={15} />
+                    )}
                   </button>
                 </div>
 
@@ -515,6 +686,20 @@ export default function StudentRegistrationsTab() {
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-900 text-white font-black uppercase tracking-wider text-[0.68rem]">
+                <th className="py-2.5 px-3 w-10 text-center">
+                  <button
+                    type="button"
+                    onClick={handleToggleSelectAll}
+                    className="text-slate-400 hover:text-white cursor-pointer inline-flex items-center justify-center transition-colors"
+                    title={isAllFilteredSelected ? "Deselect all filtered" : "Select all filtered"}
+                  >
+                    {isAllFilteredSelected ? (
+                      <CheckSquare size={16} className="text-blue-400" />
+                    ) : (
+                      <Square size={16} className="text-slate-400 hover:text-white" />
+                    )}
+                  </button>
+                </th>
                 <th className="py-2.5 px-3">Roll / Reg No</th>
                 <th className="py-2.5 px-3">Athlete / Team Captain</th>
                 <th className="py-2.5 px-3">Type & Division</th>
@@ -529,9 +714,34 @@ export default function StudentRegistrationsTab() {
                   const isBoys = student.gender === 'Boys Division';
                   const isTeam = student.registrationType === 'team' || Boolean(student.teamPlayers && student.teamPlayers.length > 0);
                   const squadCount = student.teamPlayers ? student.teamPlayers.length : 12;
+                  const isSelected = selectedIds.includes(student.id);
+                  const isTargetDeleting = deletingId === (student.id || student.rollNo);
 
                   return (
-                    <tr key={student.id} className={`transition-colors ${isTeam ? 'hover:bg-amber-50/50 bg-amber-50/15' : 'hover:bg-blue-50/40'}`}>
+                    <tr 
+                      key={student.id} 
+                      className={`transition-colors ${
+                        isSelected 
+                          ? 'bg-blue-50/70' 
+                          : isTeam ? 'hover:bg-amber-50/50 bg-amber-50/15' : 'hover:bg-blue-50/40'
+                      }`}
+                    >
+                      {/* Checkbox cell */}
+                      <td className="py-2.5 px-3 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSelectOne(student.id)}
+                          className="text-slate-400 hover:text-blue-600 cursor-pointer inline-flex items-center justify-center transition-colors"
+                          title={isSelected ? "Deselect athlete" : "Select athlete"}
+                        >
+                          {isSelected ? (
+                            <CheckSquare size={16} className="text-blue-600" />
+                          ) : (
+                            <Square size={16} className="text-slate-300 hover:text-slate-500" />
+                          )}
+                        </button>
+                      </td>
+
                       <td className="py-2.5 px-3 font-mono font-black text-blue-600 whitespace-nowrap">
                         {student.rollNo}
                       </td>
@@ -641,15 +851,17 @@ export default function StudentRegistrationsTab() {
                           </button>
                         )}
                         <button
-                          onClick={() => {
-                            if (window.confirm(`Delete registration for ${student.name} (${student.rollNo})?`)) {
-                              deleteRegistration(student.id);
-                            }
-                          }}
-                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                          type="button"
+                          onClick={() => setDeleteConfirmModal({ type: 'single', student })}
+                          disabled={isTargetDeleting}
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50"
                           title="Delete Registration"
                         >
-                          <Trash2 size={14} />
+                          {isTargetDeleting ? (
+                            <Loader2 size={14} className="animate-spin text-rose-600" />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
                         </button>
                       </td>
                     </tr>
@@ -657,7 +869,7 @@ export default function StudentRegistrationsTab() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400 font-medium">
+                  <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">
                     No athlete or team registrations found matching the search criteria.
                   </td>
                 </tr>
@@ -667,7 +879,98 @@ export default function StudentRegistrationsTab() {
         </div>
       </div>
 
-      {/* 5. MODAL: SQUAD ROSTER VIEWER (Interactive Full Team Breakdown) */}
+      {/* 5. CUSTOM IN-APP DELETE CONFIRMATION MODAL */}
+      {deleteConfirmModal && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl border border-slate-200 space-y-4">
+            
+            {/* Modal Icon & Header */}
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center shrink-0">
+                <AlertTriangle size={20} />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-sm sm:text-base font-black text-slate-900 leading-snug">
+                  {deleteConfirmModal.type === 'bulk' 
+                    ? `Delete ${selectedIds.length} Athlete Registrations?` 
+                    : 'Permanently Delete Registration?'}
+                </h4>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">
+                  This action will remove the record(s) from the Supabase live database and synced storage.
+                </p>
+              </div>
+            </div>
+
+            {/* Details Box for Single Delete */}
+            {deleteConfirmModal.type === 'single' && deleteConfirmModal.student && (
+              <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-bold uppercase text-[0.62rem]">Athlete / Captain</span>
+                  <span className="font-black text-slate-900">{deleteConfirmModal.student.name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-bold uppercase text-[0.62rem]">Roll No</span>
+                  <span className="font-mono font-bold text-blue-700">{deleteConfirmModal.student.rollNo}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-bold uppercase text-[0.62rem]">Branch & Year</span>
+                  <span className="font-semibold text-slate-700">{deleteConfirmModal.student.branch} ({deleteConfirmModal.student.year})</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400 font-bold uppercase text-[0.62rem]">Discipline / Type</span>
+                  <span className="font-semibold text-slate-700">
+                    {deleteConfirmModal.student.registrationType === 'team' || deleteConfirmModal.student.teamPlayers?.length > 0
+                      ? `👥 Team (${deleteConfirmModal.student.teamSport || deleteConfirmModal.student.events?.[0]})`
+                      : `🏃 ${deleteConfirmModal.student.events?.join(', ') || 'Athletics'}`}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Warning Box for Bulk Delete */}
+            {deleteConfirmModal.type === 'bulk' && (
+              <div className="bg-amber-50 rounded-xl p-3 border border-amber-200 text-xs font-semibold text-amber-900">
+                ⚠️ You are about to permanently delete <strong>{selectedIds.length}</strong> selected registration records across all disciplines. This cannot be undone.
+              </div>
+            )}
+
+            {/* Modal Actions */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setDeleteConfirmModal(null)}
+                disabled={deletingId !== null || isBulkDeleting}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteConfirmModal.type === 'bulk') {
+                    handleExecuteBulkDelete();
+                  } else {
+                    handleExecuteSingleDelete(deleteConfirmModal.student);
+                  }
+                }}
+                disabled={deletingId !== null || isBulkDeleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+              >
+                {(deletingId !== null || isBulkDeleting) && (
+                  <Loader2 size={13} className="animate-spin" />
+                )}
+                <span>
+                  {deletingId !== null || isBulkDeleting ? 'Deleting...' : 'Delete Permanently'}
+                </span>
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 6. MODAL: SQUAD ROSTER VIEWER (Interactive Full Team Breakdown) */}
       {viewingTeamRoster && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
           <div className="bg-white rounded-2xl p-4 sm:p-6 max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto space-y-4">
@@ -804,7 +1107,7 @@ export default function StudentRegistrationsTab() {
         </div>
       )}
 
-      {/* Printable Roster Modal Trigger */}
+      {/* 7. PRINTABLE ROSTER MODAL TRIGGER */}
       {printSportTitle && (
         <PrintableRosterModal
           sportTitle={printSportTitle}
