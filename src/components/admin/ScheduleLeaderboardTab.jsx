@@ -27,7 +27,8 @@ import {
   Crown,
   Table,
   SlidersHorizontal,
-  Printer
+  Printer,
+  AlertCircle
 } from 'lucide-react';
 import PrintableRosterModal from './PrintableRosterModal';
 
@@ -48,7 +49,14 @@ export default function ScheduleLeaderboardTab() {
     sportWinners, 
     assignSportWinner, 
     getStandings, 
-    updateSportCategory
+    findSportWinner,
+    updateSportCategory,
+    saveToCloud,
+    branchPointsOverride,
+    updateBranchScore,
+    resetBranchScore,
+    resetAllBranchScores,
+    setAllPointsToZero
   } = useApp();
 
   // Active Desk Sub-Section Switcher: 'standings' | 'winners' | 'fixtures' | 'rules'
@@ -93,8 +101,91 @@ export default function ScheduleLeaderboardTab() {
     return getStandings(selectedScoreDay);
   }, [getStandings, selectedScoreDay]);
 
+  // Check if all branches have 0 points (pre-tournament zero state)
+  const allZero = useMemo(() => {
+    return activeStandings.every(b => (b.totalPoints || 0) === 0);
+  }, [activeStandings]);
+
   // Current Leader
   const currentLeader = activeStandings[0] || null;
+
+  // Direct Points & Medals Editing State (Instant Cloud Sync)
+  const [editingBranch, setEditingBranch] = useState(null);
+  const [showPointsModal, setShowPointsModal] = useState(false);
+  const [pointsForm, setPointsForm] = useState({
+    totalPoints: 0,
+    athGold: 0,
+    athSilver: 0,
+    athBronze: 0,
+    teamGold: 0,
+    teamSilver: 0
+  });
+
+  const handleOpenEditBranch = (branch) => {
+    setEditingBranch(branch);
+    setPointsForm({
+      totalPoints: branch.totalPoints ?? 0,
+      athGold: branch.athGold ?? 0,
+      athSilver: branch.athSilver ?? 0,
+      athBronze: branch.athBronze ?? 0,
+      teamGold: branch.teamGold ?? 0,
+      teamSilver: branch.teamSilver ?? 0
+    });
+    setShowPointsModal(true);
+  };
+
+  const handleSaveBranchPoints = (e) => {
+    e.preventDefault();
+    if (!editingBranch) return;
+    const cleanTotal = Number(pointsForm.totalPoints) || 0;
+    const cleanAthGold = Number(pointsForm.athGold) || 0;
+    const cleanAthSilver = Number(pointsForm.athSilver) || 0;
+    const cleanAthBronze = Number(pointsForm.athBronze) || 0;
+    const cleanTeamGold = Number(pointsForm.teamGold) || 0;
+    const cleanTeamSilver = Number(pointsForm.teamSilver) || 0;
+
+    updateBranchScore(editingBranch.code, {
+      totalPoints: cleanTotal,
+      athGold: cleanAthGold,
+      athSilver: cleanAthSilver,
+      athBronze: cleanAthBronze,
+      teamGold: cleanTeamGold,
+      teamSilver: cleanTeamSilver,
+      isManual: true
+    });
+    setShowPointsModal(false);
+    setToastMsg(`Points updated for ${editingBranch.code} & synced live!`);
+    setTimeout(() => setToastMsg(''), 3000);
+  };
+
+  const handleResetBranchToAuto = (branchCode) => {
+    resetBranchScore(branchCode);
+    setShowPointsModal(false);
+    setToastMsg(`Reset ${branchCode} to auto-calculated scores.`);
+    setTimeout(() => setToastMsg(''), 3000);
+  };
+
+  const handleSetAllToZero = () => {
+    if (window.confirm("Set all branch scores to 0? This will immediately hide champions, 1st/2nd/3rd podium badges on the live website until points are awarded.")) {
+      setAllPointsToZero();
+      setToastMsg("All branch points set to 0. Champions/Podiums hidden on live site.");
+      setTimeout(() => setToastMsg(''), 3500);
+    }
+  };
+
+  const handleResetAllToAuto = () => {
+    if (window.confirm("Restore standings to auto-calculated points from match winners?")) {
+      resetAllBranchScores();
+      setToastMsg("Restored standings to auto-calculation from winners.");
+      setTimeout(() => setToastMsg(''), 3500);
+    }
+  };
+
+  const handleSyncStandingsLive = () => {
+    saveToCloud({ branchPointsOverride });
+    setToastMsg("Standings synced to live website successfully!");
+    setTimeout(() => setToastMsg(''), 3000);
+  };
 
   // Filtered Sports for Winner Assignment Tab
   const filteredWinnerSports = useMemo(() => {
@@ -236,12 +327,16 @@ export default function ScheduleLeaderboardTab() {
             </div>
             <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight flex items-center gap-2">
               <span>Schedule & Standings Command Desk</span>
-              {currentLeader && (
+              {allZero ? (
+                <span className="px-2 py-0.5 rounded-full text-[0.62rem] font-black bg-slate-100 text-slate-600 border border-slate-200 flex items-center gap-1">
+                  <span>Standings: Awaiting Results (All 0 Pts)</span>
+                </span>
+              ) : currentLeader && (currentLeader.totalPoints || 0) > 0 ? (
                 <span className="px-2 py-0.5 rounded-full text-[0.62rem] font-black bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
                   <Crown size={11} className="text-amber-600 fill-amber-500" />
                   <span>Leader: {currentLeader.code} ({currentLeader.totalPoints} PTS)</span>
                 </span>
-              )}
+              ) : null}
             </h3>
           </div>
           <p className="text-[0.68rem] font-semibold text-slate-500 mt-0.5 ml-8">
@@ -362,7 +457,7 @@ export default function ScheduleLeaderboardTab() {
           
           {/* Filter Bar & Standings Mode */}
           <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50/80 border border-slate-200 rounded-xl p-2">
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-[0.65rem] font-black uppercase tracking-wider text-slate-400 pl-1">
                 Filter Standings:
               </span>
@@ -392,10 +487,49 @@ export default function ScheduleLeaderboardTab() {
               ))}
             </div>
 
-            <div className="text-[0.65rem] text-slate-500 font-semibold pr-1">
-              Auto-calculated in real time from assigned sport winners
+            {/* Quick Admin Actions for Points */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                onClick={handleSetAllToZero}
+                title="Sets all branches to 0 points. Hides false champions/podiums until points are awarded."
+                className="px-2.5 py-1 bg-white hover:bg-rose-50 text-rose-700 hover:text-rose-800 border border-rose-200 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+              >
+                <RotateCcw size={11} className="text-rose-500" />
+                <span>Set All 0 (Pre-Tournament)</span>
+              </button>
+
+              <button
+                onClick={handleResetAllToAuto}
+                title="Restores auto-calculated scores from assigned sport winners"
+                className="px-2.5 py-1 bg-white hover:bg-blue-50 text-blue-700 hover:text-blue-800 border border-blue-200 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-2xs"
+              >
+                <RefreshCw size={11} className="text-blue-500" />
+                <span>Auto-Calculate</span>
+              </button>
+
+              <button
+                onClick={handleSyncStandingsLive}
+                title="Force sync standings and points overrides directly to live website"
+                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-black transition flex items-center gap-1 cursor-pointer shadow-2xs"
+              >
+                <Save size={11} />
+                <span>Sync Live</span>
+              </button>
             </div>
           </div>
+
+          {/* Pre-Tournament Zero State Notice */}
+          {allZero && (
+            <div className="p-3 bg-amber-50/80 border border-amber-200/90 rounded-xl text-xs font-medium text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                <div>
+                  <span className="font-bold">Pre-Tournament Zero Points Mode Active: </span>
+                  <span>All branches are at 0 points. Champion rolling shield, crowns, and 1st, 2nd, 3rd podium ranks are safely suppressed on the live website. Click <strong>"Edit"</strong> on any branch below to directly award points, or assign winners.</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Metallic Compact High-Density Podium Table */}
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
@@ -405,18 +539,20 @@ export default function ScheduleLeaderboardTab() {
                   <tr>
                     <th className="py-2.5 px-3 w-12 text-center">Rank</th>
                     <th className="py-2.5 px-3.5">Engineering Branch</th>
-                    <th className="py-2.5 px-3 text-center">Athletics Medals (5/3/1 Pts)</th>
-                    <th className="py-2.5 px-3 text-center">Team Sports Medals (8/5 Pts)</th>
+                    <th className="py-2.5 px-3 text-center">Athletics Medals ({athleticsPointsRule.gold || 5}/{athleticsPointsRule.silver || 3}/{athleticsPointsRule.bronze || 1} Pts)</th>
+                    <th className="py-2.5 px-3 text-center">Team Sports Medals ({teamPointsRule.gold || 8}/{teamPointsRule.silver || 5} Pts)</th>
                     <th className="py-2.5 px-3 text-center">Total Medals</th>
                     <th className="py-2.5 px-3.5 text-right">Championship Score</th>
+                    <th className="py-2.5 px-3 text-center w-24">Action</th>
                   </tr>
                 </thead>
 
                 <tbody className="divide-y divide-slate-100 font-bold text-slate-700">
                   {activeStandings.map((row, idx) => {
-                    const isGoldLeader = idx === 0;
-                    const isSilverLeader = idx === 1;
-                    const isBronzeLeader = idx === 2;
+                    const hasPoints = (row.totalPoints || 0) > 0;
+                    const isGoldLeader = !allZero && hasPoints && idx === 0;
+                    const isSilverLeader = !allZero && hasPoints && idx === 1;
+                    const isBronzeLeader = !allZero && hasPoints && idx === 2;
 
                     return (
                       <tr 
@@ -438,15 +574,15 @@ export default function ScheduleLeaderboardTab() {
                               ? 'bg-slate-300 text-slate-800' 
                               : isBronzeLeader 
                               ? 'bg-amber-800/20 text-amber-800' 
-                              : 'bg-slate-100 text-slate-500'
+                              : 'bg-slate-100 text-slate-400'
                           }`}>
-                            {idx + 1}
+                            {allZero || !hasPoints ? '—' : idx + 1}
                           </span>
                         </td>
 
                         {/* Branch Name & Code */}
                         <td className="py-2 px-3.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono font-black text-xs text-slate-900 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200">
                               {row.code}
                             </span>
@@ -456,6 +592,11 @@ export default function ScheduleLeaderboardTab() {
                             {isGoldLeader && (
                               <span className="px-1.5 py-0.2 rounded-full text-[0.6rem] font-black bg-amber-200 text-amber-900 border border-amber-300 flex items-center gap-0.5">
                                 <Crown size={10} className="fill-amber-600 text-amber-700" /> Leading
+                              </span>
+                            )}
+                            {row.isManual && (
+                              <span className="px-1.5 py-0.2 rounded-full text-[0.58rem] font-black bg-blue-100 text-blue-700 border border-blue-200">
+                                Manual Override
                               </span>
                             )}
                           </div>
@@ -497,10 +638,24 @@ export default function ScheduleLeaderboardTab() {
                           <span className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs shadow-2xs inline-block ${
                             isGoldLeader
                               ? 'bg-amber-500 text-slate-950'
-                              : 'bg-slate-900 text-amber-400'
+                              : hasPoints
+                              ? 'bg-slate-900 text-amber-400'
+                              : 'bg-slate-100 text-slate-500'
                           }`}>
-                            {row.totalPoints} PTS
+                            {row.totalPoints || 0} PTS
                           </span>
+                        </td>
+
+                        {/* Action: Edit Points */}
+                        <td className="py-2 px-3 text-center">
+                          <button
+                            onClick={() => handleOpenEditBranch(row)}
+                            title={`Edit points and medals for ${row.code}`}
+                            className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-lg text-xs font-black transition flex items-center justify-center gap-1 mx-auto cursor-pointer shadow-2xs"
+                          >
+                            <Edit2 size={11} className="text-amber-700" />
+                            <span>Edit</span>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -607,7 +762,7 @@ export default function ScheduleLeaderboardTab() {
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
                   {filteredWinnerSports.length > 0 ? (
                     filteredWinnerSports.map(sport => {
-                      const currentWinner = sportWinners[sport.id] || sportWinners[sport.title] || {};
+                      const currentWinner = findSportWinner(sportWinners, sport) || {};
                       const titleLower = (sport.title || '').toLowerCase();
                       const isTeamSport = sport.category === 'team' || titleLower.includes('cricket') || titleLower.includes('football') || titleLower.includes('volleyball') || titleLower.includes('kabaddi') || titleLower.includes('kho');
                       const emoji = getSportEmoji(sport.title, sport.category);
@@ -971,10 +1126,34 @@ export default function ScheduleLeaderboardTab() {
                       type="number"
                       min="1"
                       value={athleticsPointsRule.gold || 5}
-                      onChange={(e) => updatePointsRule('athletics', { gold: Number(e.target.value) })}
+                      onChange={(e) => {
+                        updatePointsRule('athletics', { gold: Number(e.target.value) });
+                        setToastMsg(`Athletics Gold updated to ${e.target.value} pts`);
+                        setTimeout(() => setToastMsg(''), 1800);
+                      }}
                       className="w-12 text-center font-black text-xs bg-white border border-amber-300 rounded py-0.5"
                     />
                     <span className="text-[0.65rem] font-bold text-amber-800">pts</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-1 mt-1.5">
+                    {[5, 6, 7].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => {
+                          updatePointsRule('athletics', { gold: val });
+                          setToastMsg(`Set Athletics Gold to ${val} pts`);
+                          setTimeout(() => setToastMsg(''), 1800);
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[0.6rem] font-black transition cursor-pointer ${
+                          (athleticsPointsRule.gold || 5) === val
+                            ? 'bg-amber-600 text-white shadow-2xs'
+                            : 'bg-white hover:bg-amber-100 text-amber-900 border border-amber-300'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -985,10 +1164,34 @@ export default function ScheduleLeaderboardTab() {
                       type="number"
                       min="0"
                       value={athleticsPointsRule.silver || 3}
-                      onChange={(e) => updatePointsRule('athletics', { silver: Number(e.target.value) })}
+                      onChange={(e) => {
+                        updatePointsRule('athletics', { silver: Number(e.target.value) });
+                        setToastMsg(`Athletics Silver updated to ${e.target.value} pts`);
+                        setTimeout(() => setToastMsg(''), 1800);
+                      }}
                       className="w-12 text-center font-black text-xs bg-white border border-slate-300 rounded py-0.5"
                     />
                     <span className="text-[0.65rem] font-bold text-slate-700">pts</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-1 mt-1.5">
+                    {[2, 3, 4].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => {
+                          updatePointsRule('athletics', { silver: val });
+                          setToastMsg(`Set Athletics Silver to ${val} pts`);
+                          setTimeout(() => setToastMsg(''), 1800);
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[0.6rem] font-black transition cursor-pointer ${
+                          (athleticsPointsRule.silver || 3) === val
+                            ? 'bg-slate-700 text-white shadow-2xs'
+                            : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -999,10 +1202,34 @@ export default function ScheduleLeaderboardTab() {
                       type="number"
                       min="0"
                       value={athleticsPointsRule.bronze || 1}
-                      onChange={(e) => updatePointsRule('athletics', { bronze: Number(e.target.value) })}
+                      onChange={(e) => {
+                        updatePointsRule('athletics', { bronze: Number(e.target.value) });
+                        setToastMsg(`Athletics Bronze updated to ${e.target.value} pts`);
+                        setTimeout(() => setToastMsg(''), 1800);
+                      }}
                       className="w-12 text-center font-black text-xs bg-white border border-amber-900/30 rounded py-0.5"
                     />
                     <span className="text-[0.65rem] font-bold text-amber-900">pts</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-1 mt-1.5">
+                    {[1, 2].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => {
+                          updatePointsRule('athletics', { bronze: val });
+                          setToastMsg(`Set Athletics Bronze to ${val} pts`);
+                          setTimeout(() => setToastMsg(''), 1800);
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[0.6rem] font-black transition cursor-pointer ${
+                          (athleticsPointsRule.bronze || 1) === val
+                            ? 'bg-amber-900 text-white shadow-2xs'
+                            : 'bg-white hover:bg-amber-200 text-amber-950 border border-amber-900/30'
+                        }`}
+                      >
+                        {val}
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1026,37 +1253,101 @@ export default function ScheduleLeaderboardTab() {
 
               <div className="grid grid-cols-2 gap-2 text-center text-xs">
                 <div className="p-2 rounded-lg bg-amber-50 border border-amber-200">
-                  <span className="text-[0.62rem] font-black text-amber-900 uppercase block mb-1">🥇 1st Place</span>
+                  <span className="text-[0.62rem] font-black text-amber-900 uppercase block mb-1">🥇 1st Place (Gold)</span>
                   <div className="flex items-center justify-center gap-1">
                     <input
                       type="number"
                       min="1"
                       value={teamPointsRule.gold || 8}
-                      onChange={(e) => updatePointsRule('team', { gold: Number(e.target.value) })}
-                      className="w-12 text-center font-black text-xs bg-white border border-amber-300 rounded py-0.5"
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        updatePointsRule('team', { gold: val });
+                        setToastMsg(`Team Gold updated to ${val} pts`);
+                        setTimeout(() => setToastMsg(''), 1800);
+                      }}
+                      className="w-14 text-center font-black text-xs bg-white border border-amber-300 rounded py-0.5"
                     />
                     <span className="text-[0.65rem] font-bold text-amber-800">pts</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-1.5 mt-2">
+                    {[7, 8, 10].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => {
+                          updatePointsRule('team', { gold: val });
+                          setToastMsg(`Set Team Gold to ${val} pts (Standings recalculated)`);
+                          setTimeout(() => setToastMsg(''), 1800);
+                        }}
+                        className={`px-2 py-0.5 rounded-md text-[0.65rem] font-black transition cursor-pointer ${
+                          (teamPointsRule.gold || 8) === val
+                            ? 'bg-amber-600 text-white shadow-2xs ring-1 ring-amber-500'
+                            : 'bg-white hover:bg-amber-100 text-amber-900 border border-amber-300'
+                        }`}
+                      >
+                        {val} Pts
+                      </button>
+                    ))}
                   </div>
                 </div>
 
                 <div className="p-2 rounded-lg bg-slate-100 border border-slate-200">
-                  <span className="text-[0.62rem] font-black text-slate-700 uppercase block mb-1">🥈 2nd Place</span>
+                  <span className="text-[0.62rem] font-black text-slate-700 uppercase block mb-1">🥈 2nd Place (Silver)</span>
                   <div className="flex items-center justify-center gap-1">
                     <input
                       type="number"
                       min="0"
                       value={teamPointsRule.silver || 5}
-                      onChange={(e) => updatePointsRule('team', { silver: Number(e.target.value) })}
-                      className="w-12 text-center font-black text-xs bg-white border border-slate-300 rounded py-0.5"
+                      onChange={(e) => {
+                        const val = Number(e.target.value);
+                        updatePointsRule('team', { silver: val });
+                        setToastMsg(`Team Silver updated to ${val} pts`);
+                        setTimeout(() => setToastMsg(''), 1800);
+                      }}
+                      className="w-14 text-center font-black text-xs bg-white border border-slate-300 rounded py-0.5"
                     />
                     <span className="text-[0.65rem] font-bold text-slate-700">pts</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-1.5 mt-2">
+                    {[4, 5, 6].map(val => (
+                      <button
+                        key={val}
+                        type="button"
+                        onClick={() => {
+                          updatePointsRule('team', { silver: val });
+                          setToastMsg(`Set Team Silver to ${val} pts`);
+                          setTimeout(() => setToastMsg(''), 1800);
+                        }}
+                        className={`px-2 py-0.5 rounded-md text-[0.65rem] font-black transition cursor-pointer ${
+                          (teamPointsRule.silver || 5) === val
+                            ? 'bg-slate-700 text-white shadow-2xs ring-1 ring-slate-600'
+                            : 'bg-white hover:bg-slate-200 text-slate-700 border border-slate-300'
+                        }`}
+                      >
+                        {val} Pts
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              <p className="text-[0.62rem] text-slate-400">
-                Applied to Cricket, Football, Volleyball, Kabaddi, and 4x400m Relay races (No 3rd place points).
-              </p>
+              <div className="flex items-center justify-between pt-1">
+                <p className="text-[0.62rem] text-slate-400">
+                  Applied to Cricket, Football, Volleyball, Kabaddi, and 4x400m Relay races.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    saveToCloud({ teamPointsRule, athleticsPointsRule });
+                    setToastMsg('Points rules saved & synced to live website!');
+                    setTimeout(() => setToastMsg(''), 2200);
+                  }}
+                  className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[0.65rem] font-black flex items-center gap-1 shadow-xs cursor-pointer transition shrink-0"
+                >
+                  <Save size={11} />
+                  <span>Sync Cloud</span>
+                </button>
+              </div>
             </div>
 
           </div>
@@ -1154,6 +1445,146 @@ export default function ScheduleLeaderboardTab() {
                 >
                   Confirm Fixture
                 </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT BRANCH POINTS & MEDALS (DIRECT CRUD & INSTANT CLOUD SYNC) */}
+      {showPointsModal && editingBranch && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h4 className="font-black text-slate-900 text-base flex items-center gap-2">
+                  <Trophy className="text-amber-500" size={18} />
+                  <span>Edit Points: {editingBranch.displayName}</span>
+                </h4>
+                <p className="text-[0.7rem] font-semibold text-slate-500 mt-0.5">
+                  Update points and medals for {editingBranch.code}. Automatically syncs live across devices.
+                </p>
+              </div>
+              <button 
+                onClick={() => setShowPointsModal(false)}
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveBranchPoints} className="space-y-4 text-xs font-semibold">
+              {/* Championship Total Points */}
+              <div className="bg-amber-50/70 border border-amber-200 p-3 rounded-xl">
+                <label className="block text-xs uppercase font-black text-amber-900 mb-1">
+                  🏆 Championship Total Points *
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="9999"
+                  required
+                  value={pointsForm.totalPoints}
+                  onChange={(e) => setPointsForm({ ...pointsForm, totalPoints: Math.max(0, parseInt(e.target.value) || 0) })}
+                  className="w-full px-3.5 py-2 bg-white border border-amber-300 rounded-lg text-slate-900 font-mono font-black text-lg focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <p className="text-[0.68rem] text-amber-800/80 font-medium mt-1">
+                  Setting points to 0 suppresses champion rolling shield and 1st/2nd/3rd rank badges on the live website.
+                </p>
+              </div>
+
+              {/* Athletics Medals */}
+              <div>
+                <label className="block text-[0.68rem] uppercase font-black text-slate-700 mb-1.5">
+                  🏃 Athletics & Individual Medals ({athleticsPointsRule.gold || 5}/{athleticsPointsRule.silver || 3}/{athleticsPointsRule.bronze || 1} Pts)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <span className="text-[0.65rem] font-bold text-amber-600 block mb-1">🥇 Gold</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={pointsForm.athGold}
+                      onChange={(e) => setPointsForm({ ...pointsForm, athGold: Math.max(0, parseInt(e.target.value) || 0) })}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono font-bold text-xs"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[0.65rem] font-bold text-slate-500 block mb-1">🥈 Silver</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={pointsForm.athSilver}
+                      onChange={(e) => setPointsForm({ ...pointsForm, athSilver: Math.max(0, parseInt(e.target.value) || 0) })}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono font-bold text-xs"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[0.65rem] font-bold text-amber-800 block mb-1">🥉 Bronze</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={pointsForm.athBronze}
+                      onChange={(e) => setPointsForm({ ...pointsForm, athBronze: Math.max(0, parseInt(e.target.value) || 0) })}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono font-bold text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Team Medals */}
+              <div>
+                <label className="block text-[0.68rem] uppercase font-black text-slate-700 mb-1.5">
+                  ⚽ Team Sports Medals ({teamPointsRule.gold || 8}/{teamPointsRule.silver || 5} Pts)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-[0.65rem] font-bold text-amber-600 block mb-1">🥇 Team Gold</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={pointsForm.teamGold}
+                      onChange={(e) => setPointsForm({ ...pointsForm, teamGold: Math.max(0, parseInt(e.target.value) || 0) })}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono font-bold text-xs"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[0.65rem] font-bold text-slate-500 block mb-1">🥈 Team Silver</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={pointsForm.teamSilver}
+                      onChange={(e) => setPointsForm({ ...pointsForm, teamSilver: Math.max(0, parseInt(e.target.value) || 0) })}
+                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono font-bold text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleResetBranchToAuto(editingBranch.code)}
+                  className="px-3 py-1.5 text-rose-600 hover:bg-rose-50 border border-rose-200 rounded-lg font-bold text-xs cursor-pointer transition"
+                >
+                  Reset to Auto
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPointsModal(false)}
+                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer transition"
+                  >
+                    <Save size={14} />
+                    <span>Save & Sync Live</span>
+                  </button>
+                </div>
               </div>
             </form>
           </div>

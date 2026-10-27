@@ -62,6 +62,38 @@ function normalizeDignitariesStructure(parsed) {
 }
 
 /**
+ * Robust winner resolver that matches across sport.id, sport.title,
+ * and canonical prefixes (e.g. 'athletics-100m' <-> 'sport-100m' <-> '100m Sprint').
+ */
+export function findSportWinner(sportWinners = {}, sport) {
+  if (!sport || !sportWinners) return null;
+  const sId = String(sport.id || '').toLowerCase().trim();
+  const sTitle = String(sport.title || '').toLowerCase().trim();
+
+  // 1. Direct match by id
+  if (sport.id && sportWinners[sport.id]) return sportWinners[sport.id];
+  // 2. Direct match by title
+  if (sport.title && sportWinners[sport.title]) return sportWinners[sport.title];
+
+  // 3. Normalization aliases
+  const strippedId = sId.replace(/^(athletics|team|sport)-/, '');
+  const slugTitle = sTitle.replace(/[^a-z0-9]/g, '');
+
+  for (const [key, value] of Object.entries(sportWinners)) {
+    if (!value || typeof value !== 'object') continue;
+    const k = key.toLowerCase().trim();
+    const strippedKey = k.replace(/^(athletics|team|sport)-/, '');
+
+    if (k === sId || k === sTitle) return value;
+    if (strippedKey && strippedId && strippedKey === strippedId) return value;
+    if (strippedKey && sTitle.includes(strippedKey)) return value;
+    if (strippedId && k.includes(strippedId)) return value;
+    if (slugTitle && k.replace(/[^a-z0-9]/g, '') === slugTitle) return value;
+  }
+  return null;
+}
+
+/**
  * Robust parsing helper for sport disciplines.
  * Handles arrays, JSON strings, comma-delimited strings, or single values without crashing.
  */
@@ -83,6 +115,19 @@ export function safeParseEvents(events) {
   }
   return [];
 }
+
+export const DEFAULT_TEAM_SQUAD_SIZES = {
+  'Volleyball Championship': 12,
+  'Badminton Championship': 12,
+  'Kabaddi League': 12,
+  'Kho-Kho Tournament': 12,
+  'Football Champions Cup': 16,
+  'Cricket Tournament': 16,
+  'Tug of War Championship': 12,
+  'Table Tennis Championship': 4,
+  'Chess Rapid & Blitz Tournament': 4,
+  '4 x 400m Relay Race': 4
+};
 
 export function AppProvider({ children }) {
   // Website General Settings State
@@ -167,21 +212,57 @@ export function AppProvider({ children }) {
     return saved ? JSON.parse(saved) : { gold: 5, silver: 3, bronze: 1 };
   });
 
+  // Admin Configurable Team Squad Sizes ({ [sportTitle]: numberOfPlayers })
+  const [teamSquadSizes, setTeamSquadSizes] = useState(() => {
+    const saved = localStorage.getItem('aahwan_team_squad_sizes') || localStorage.getItem('AWAHAAN_team_squad_sizes');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return { ...DEFAULT_TEAM_SQUAD_SIZES, ...parsed };
+      } catch (e) {
+        console.warn('Failed to parse team squad sizes:', e);
+      }
+    }
+    return DEFAULT_TEAM_SQUAD_SIZES;
+  });
+
+  const updateTeamSquadSize = (sportTitle, size) => {
+    const num = Math.max(1, Math.min(32, parseInt(size, 10) || 1));
+    setTeamSquadSizes(prev => {
+      const next = { ...prev, [sportTitle]: num };
+      localStorage.setItem('aahwan_team_squad_sizes', JSON.stringify(next));
+      localStorage.setItem('AWAHAAN_team_squad_sizes', JSON.stringify(next));
+      saveToCloud({ teamSquadSizes: next });
+      return next;
+    });
+  };
+
   // Per-Sport Winner Assignments State ({ [sportId]: { day: 1|2|3, first: 'CSE', second: 'EE', third: 'ME' } })
   const [sportWinners, setSportWinners] = useState(() => {
-    const saved = localStorage.getItem('aahwan_sport_winners');
+    const saved = localStorage.getItem('aahwan_sport_winners') || localStorage.getItem('AWAHAAN_sport_winners');
     return saved ? JSON.parse(saved) : {
+      'athletics-100m': { day: 1, first: 'CSE', second: 'EE', third: 'ME' },
       'sport-100m': { day: 1, first: 'CSE', second: 'EE', third: 'ME' },
+      'athletics-200m': { day: 1, first: 'EE', second: 'CSE', third: 'CE' },
       'sport-200m': { day: 1, first: 'EE', second: 'CSE', third: 'CE' },
+      'athletics-400m': { day: 1, first: 'CSE', second: 'ME', third: 'EE' },
       'sport-400m': { day: 1, first: 'CSE', second: 'ME', third: 'EE' },
+      'athletics-longjump': { day: 1, first: 'ME', second: 'CSE', third: 'CE' },
       'sport-longjump': { day: 1, first: 'ME', second: 'CSE', third: 'CE' },
-      'sport-cricket': { day: 1, first: 'CSE', second: 'ME', third: '' }, // Team: 1st=8, 2nd=5, 3rd=0
-      'sport-football': { day: 2, first: 'EE', second: 'CE', third: '' },  // Team: 1st=8, 2nd=5, 3rd=0
-      'sport-volleyball': { day: 2, first: 'CSE', second: 'EE', third: '' },// Team: 1st=8, 2nd=5, 3rd=0
-      'sport-kabaddi': { day: 2, first: 'ME', second: 'CSE', third: '' },   // Team: 1st=8, 2nd=5, 3rd=0
+      'team-cricket': { day: 1, first: 'CSE', second: 'ME', third: '' }, // Team: 1st=8/7, 2nd=5
+      'sport-cricket': { day: 1, first: 'CSE', second: 'ME', third: '' },
+      'team-football': { day: 2, first: 'EE', second: 'CE', third: '' },  // Team: 1st=8/7, 2nd=5
+      'sport-football': { day: 2, first: 'EE', second: 'CE', third: '' },
+      'team-volleyball': { day: 2, first: 'CSE', second: 'EE', third: '' },// Team: 1st=8/7, 2nd=5
+      'sport-volleyball': { day: 2, first: 'CSE', second: 'EE', third: '' },
+      'team-kabaddi': { day: 2, first: 'ME', second: 'CSE', third: '' },   // Team: 1st=8/7, 2nd=5
+      'sport-kabaddi': { day: 2, first: 'ME', second: 'CSE', third: '' },
+      'athletics-chess': { day: 2, first: 'CSE', second: 'EE', third: 'ME' },
       'sport-chess': { day: 2, first: 'CSE', second: 'EE', third: 'ME' },
+      'athletics-badminton': { day: 3, first: 'EE', second: 'CSE', third: 'CE' },
       'sport-badminton': { day: 3, first: 'EE', second: 'CSE', third: 'CE' },
-      'sport-relay': { day: 3, first: 'CSE', second: 'ME', third: '' }     // Team: 1st=8, 2nd=5, 3rd=0
+      'team-relay': { day: 3, first: 'CSE', second: 'ME', third: '' },     // Team: 1st=8/7, 2nd=5
+      'sport-relay': { day: 3, first: 'CSE', second: 'ME', third: '' }
     };
   });
 
@@ -208,6 +289,12 @@ export function AppProvider({ children }) {
         { code: 'CE', branchName: 'Civil Engineering', athGold: 1, athSilver: 1, athBronze: 1, teamGold: 0, teamSilver: 0, teamBronze: 1 }
       ]
     };
+  });
+
+  // Direct Branch Points & Medals Override State ({ [branchCode]: { totalPoints, athGold, athSilver, athBronze, teamGold, teamSilver, isManual } })
+  const [branchPointsOverride, setBranchPointsOverride] = useState(() => {
+    const saved = localStorage.getItem('aahwan_branch_points') || localStorage.getItem('AWAHAAN_branch_points');
+    return saved ? JSON.parse(saved) : {};
   });
 
   // Photo Highlights Gallery State
@@ -366,11 +453,12 @@ export function AppProvider({ children }) {
       console.warn('Supabase client is not connected.');
       return { success: false, error: 'Supabase client is not configured' };
     }
-    // Safety Guard: Never write before initial cloud state has been retrieved
-    if (!isCloudLoadedRef.current) {
+    // Safety Guard: Only block automatic background writes before cloud state is ready, never block explicit admin saves
+    if (!isCloudLoadedRef.current && Object.keys(customOverrides).length === 0) {
       console.warn('Save blocked: initial cloud data still loading.');
       return { success: false, error: 'Initial database sync in progress' };
     }
+    isCloudLoadedRef.current = true;
     try {
       setCloudSyncStatus('syncing');
       const payload = {
@@ -393,9 +481,11 @@ export function AppProvider({ children }) {
         dailyMedals: customOverrides.dailyMedals !== undefined ? customOverrides.dailyMedals : dailyMedals,
         teamPointsRule: customOverrides.teamPointsRule !== undefined ? customOverrides.teamPointsRule : teamPointsRule,
         athleticsPointsRule: customOverrides.athleticsPointsRule !== undefined ? customOverrides.athleticsPointsRule : athleticsPointsRule,
+        branchPointsOverride: customOverrides.branchPointsOverride !== undefined ? customOverrides.branchPointsOverride : branchPointsOverride,
         equipmentList: customOverrides.equipmentList !== undefined ? customOverrides.equipmentList : equipmentList,
         equipmentLogs: customOverrides.equipmentLogs !== undefined ? customOverrides.equipmentLogs : equipmentLogs,
-        registrations: customOverrides.registrations !== undefined ? customOverrides.registrations : registrations
+        registrations: customOverrides.registrations !== undefined ? customOverrides.registrations : registrations,
+        teamSquadSizes: customOverrides.teamSquadSizes !== undefined ? customOverrides.teamSquadSizes : teamSquadSizes
       };
 
       const { error } = await supabase.from('site_settings').upsert({
@@ -498,6 +588,11 @@ export function AppProvider({ children }) {
           localStorage.setItem('aahwan_ath_points_rule', JSON.stringify(cfg.athleticsPointsRule));
           localStorage.setItem('AWAHAAN_ath_points_rule', JSON.stringify(cfg.athleticsPointsRule));
         }
+        if (cfg.branchPointsOverride && typeof cfg.branchPointsOverride === 'object') {
+          setBranchPointsOverride(cfg.branchPointsOverride);
+          localStorage.setItem('aahwan_branch_points', JSON.stringify(cfg.branchPointsOverride));
+          localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(cfg.branchPointsOverride));
+        }
         if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
           setEquipmentList(cfg.equipmentList);
           localStorage.setItem('aahwan_equipment', JSON.stringify(cfg.equipmentList));
@@ -505,6 +600,12 @@ export function AppProvider({ children }) {
         if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
           setEquipmentLogs(cfg.equipmentLogs);
           localStorage.setItem('aahwan_equipment_logs', JSON.stringify(cfg.equipmentLogs));
+        }
+        if (cfg.teamSquadSizes && typeof cfg.teamSquadSizes === 'object') {
+          const mergedSizes = { ...DEFAULT_TEAM_SQUAD_SIZES, ...cfg.teamSquadSizes };
+          setTeamSquadSizes(mergedSizes);
+          localStorage.setItem('aahwan_team_squad_sizes', JSON.stringify(mergedSizes));
+          localStorage.setItem('AWAHAAN_team_squad_sizes', JSON.stringify(mergedSizes));
         }
       }
 
@@ -516,18 +617,39 @@ export function AppProvider({ children }) {
 
       let parsedCloudRegs = [];
       if (!regError && Array.isArray(cloudRegs) && cloudRegs.length > 0) {
-        parsedCloudRegs = cloudRegs.map(r => ({
-          id: r.id,
-          rollNo: r.roll_no || '',
-          name: r.name || '',
-          branch: r.branch || 'General',
-          year: r.year || '1st Year',
-          gender: r.gender || 'Boys Division',
-          phone: r.phone || '',
-          email: r.email || '',
-          events: safeParseEvents(r.events),
-          timestamp: r.created_at || new Date().toISOString()
-        }));
+        parsedCloudRegs = cloudRegs.map(r => {
+          const rawEvents = safeParseEvents(r.events);
+          const rosterMarker = rawEvents.find(e => typeof e === 'string' && e.startsWith('TEAM_ROSTER:'));
+          let teamPlayers = [];
+          if (rosterMarker) {
+            try {
+              teamPlayers = JSON.parse(rosterMarker.slice(12));
+            } catch (err) {
+              console.warn('Failed to parse team roster:', err);
+            }
+          }
+          const displayEvents = rawEvents.filter(e => typeof e === 'string' && !e.startsWith('TEAM_ROSTER:'));
+          const isTeam = teamPlayers.length > 0;
+
+          return {
+            id: r.id,
+            rollNo: r.roll_no || '',
+            name: r.name || '',
+            branch: r.branch || 'General',
+            year: r.year || '1st Year',
+            gender: r.gender || 'Boys Division',
+            phone: r.phone || '',
+            email: r.email || '',
+            events: displayEvents,
+            registrationType: isTeam ? 'team' : 'individual',
+            captainName: isTeam ? r.name : '',
+            captainPhone: isTeam ? r.phone : '',
+            captainRollNo: isTeam ? r.roll_no : '',
+            teamSport: isTeam ? displayEvents[0] || '' : '',
+            teamPlayers,
+            timestamp: r.created_at || new Date().toISOString()
+          };
+        });
       }
 
       // Check fallback or merge with site_settings config.registrations
@@ -611,12 +733,39 @@ export function AppProvider({ children }) {
           if (cfg.schedule) setSchedule(cfg.schedule);
           if (cfg.leaderboard) setLeaderboard(cfg.leaderboard);
           if (cfg.galleryPhotos) setGalleryPhotos(cfg.galleryPhotos);
-          if (cfg.sportWinners) setSportWinners(cfg.sportWinners);
-          if (cfg.dailyMedals) setDailyMedals(cfg.dailyMedals);
-          if (cfg.teamPointsRule) setTeamPointsRule(cfg.teamPointsRule);
-          if (cfg.athleticsPointsRule) setAthleticsPointsRule(cfg.athleticsPointsRule);
+          if (cfg.sportWinners) {
+            setSportWinners(cfg.sportWinners);
+            localStorage.setItem('aahwan_sport_winners', JSON.stringify(cfg.sportWinners));
+            localStorage.setItem('AWAHAAN_sport_winners', JSON.stringify(cfg.sportWinners));
+          }
+          if (cfg.dailyMedals) {
+            setDailyMedals(cfg.dailyMedals);
+            localStorage.setItem('aahwan_daily_medals', JSON.stringify(cfg.dailyMedals));
+            localStorage.setItem('AWAHAAN_daily_medals', JSON.stringify(cfg.dailyMedals));
+          }
+          if (cfg.teamPointsRule) {
+            setTeamPointsRule(cfg.teamPointsRule);
+            localStorage.setItem('aahwan_team_points_rule', JSON.stringify(cfg.teamPointsRule));
+            localStorage.setItem('AWAHAAN_team_points_rule', JSON.stringify(cfg.teamPointsRule));
+          }
+          if (cfg.athleticsPointsRule) {
+            setAthleticsPointsRule(cfg.athleticsPointsRule);
+            localStorage.setItem('aahwan_ath_points_rule', JSON.stringify(cfg.athleticsPointsRule));
+            localStorage.setItem('AWAHAAN_ath_points_rule', JSON.stringify(cfg.athleticsPointsRule));
+          }
+          if (cfg.branchPointsOverride && typeof cfg.branchPointsOverride === 'object') {
+            setBranchPointsOverride(cfg.branchPointsOverride);
+            localStorage.setItem('aahwan_branch_points', JSON.stringify(cfg.branchPointsOverride));
+            localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(cfg.branchPointsOverride));
+          }
           if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) setEquipmentList(cfg.equipmentList);
           if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) setEquipmentLogs(cfg.equipmentLogs);
+          if (cfg.teamSquadSizes && typeof cfg.teamSquadSizes === 'object') {
+            const mergedSizes = { ...DEFAULT_TEAM_SQUAD_SIZES, ...cfg.teamSquadSizes };
+            setTeamSquadSizes(mergedSizes);
+            localStorage.setItem('aahwan_team_squad_sizes', JSON.stringify(mergedSizes));
+            localStorage.setItem('AWAHAAN_team_squad_sizes', JSON.stringify(mergedSizes));
+          }
           setLastSyncedTime(new Date().toLocaleTimeString());
           setTimeout(() => {
             isApplyingCloudUpdateRef.current = false;
@@ -631,6 +780,19 @@ export function AppProvider({ children }) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'registrations' }, (payload) => {
         if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new) {
           const r = payload.new;
+          const rawEvents = safeParseEvents(r.events);
+          const rosterMarker = rawEvents.find(e => typeof e === 'string' && e.startsWith('TEAM_ROSTER:'));
+          let teamPlayers = [];
+          if (rosterMarker) {
+            try {
+              teamPlayers = JSON.parse(rosterMarker.slice(12));
+            } catch (err) {
+              console.warn('Failed to parse team roster:', err);
+            }
+          }
+          const displayEvents = rawEvents.filter(e => typeof e === 'string' && !e.startsWith('TEAM_ROSTER:'));
+          const isTeam = teamPlayers.length > 0;
+
           const incoming = {
             id: r.id,
             rollNo: r.roll_no || '',
@@ -640,7 +802,13 @@ export function AppProvider({ children }) {
             gender: r.gender || 'Boys Division',
             phone: r.phone || '',
             email: r.email || '',
-            events: safeParseEvents(r.events),
+            events: displayEvents,
+            registrationType: isTeam ? 'team' : 'individual',
+            captainName: isTeam ? r.name : '',
+            captainPhone: isTeam ? r.phone : '',
+            captainRollNo: isTeam ? r.roll_no : '',
+            teamSport: isTeam ? displayEvents[0] || '' : '',
+            teamPlayers,
             timestamp: r.created_at || new Date().toISOString()
           };
           setRegistrations(prev => {
@@ -762,8 +930,24 @@ export function AppProvider({ children }) {
   // Winner Assignments & Dynamic Auto-Calculation Engine for Standings
   const assignSportWinner = (sportId, winnerData) => {
     setSportWinners(prev => {
+      const sport = sports.find(s => s.id === sportId || s.title === sportId);
       const nextState = { ...prev, [sportId]: { ...(prev[sportId] || {}), ...winnerData } };
+
+      // Also sync to alias keys so any lookup resolves immediately
+      if (sport) {
+        if (sport.id) nextState[sport.id] = { ...(nextState[sport.id] || {}), ...winnerData };
+        if (sport.title) nextState[sport.title] = { ...(nextState[sport.title] || {}), ...winnerData };
+        const stripped = (sport.id || '').replace(/^(athletics|team|sport)-/, '');
+        if (stripped) {
+          nextState[`sport-${stripped}`] = { ...(nextState[`sport-${stripped}`] || {}), ...winnerData };
+          nextState[`athletics-${stripped}`] = { ...(nextState[`athletics-${stripped}`] || {}), ...winnerData };
+          nextState[`team-${stripped}`] = { ...(nextState[`team-${stripped}`] || {}), ...winnerData };
+        }
+      }
+
       localStorage.setItem('aahwan_sport_winners', JSON.stringify(nextState));
+      localStorage.setItem('AWAHAAN_sport_winners', JSON.stringify(nextState));
+      saveToCloud({ sportWinners: nextState });
       return nextState;
     });
   };
@@ -772,6 +956,8 @@ export function AppProvider({ children }) {
     setSports(prev => {
       const updated = prev.map(s => s.id === sportId ? { ...s, category: newCategory } : s);
       localStorage.setItem('aahwan_sports', JSON.stringify(updated));
+      localStorage.setItem('AWAHAAN_sports', JSON.stringify(updated));
+      saveToCloud({ sports: updated });
       return updated;
     });
   };
@@ -784,12 +970,19 @@ export function AppProvider({ children }) {
       { code: 'CE', name: 'Civil Engineering' }
     ];
 
+    const teamGoldPts = Number(teamPointsRule?.gold ?? 8);
+    const teamSilverPts = Number(teamPointsRule?.silver ?? 5);
+    const teamBronzePts = Number(teamPointsRule?.bronze ?? 0);
+    const athGoldPts = Number(athleticsPointsRule?.gold ?? 5);
+    const athSilverPts = Number(athleticsPointsRule?.silver ?? 3);
+    const athBronzePts = Number(athleticsPointsRule?.bronze ?? 1);
+
     return branches.map(b => {
       let athGold = 0, athSilver = 0, athBronze = 0;
       let teamGold = 0, teamSilver = 0, teamBronze = 0;
 
       sports.forEach(sport => {
-        const winner = sportWinners[sport.id] || sportWinners[sport.title];
+        const winner = findSportWinner(sportWinners, sport);
         if (!winner) return;
 
         // Extract day number (default 1)
@@ -801,7 +994,7 @@ export function AppProvider({ children }) {
         if (isTeamSport) {
           if (winner.first === b.code) teamGold += 1;
           if (winner.second === b.code) teamSilver += 1;
-          // Team Games: NO 3rd place points!
+          if (winner.third === b.code) teamBronze += 1;
         } else {
           if (winner.first === b.code) athGold += 1;
           if (winner.second === b.code) athSilver += 1;
@@ -809,17 +1002,36 @@ export function AppProvider({ children }) {
         }
       });
 
-      const totalGold = athGold + teamGold;
-      const totalSilver = athSilver + teamSilver;
-      const totalBronze = athBronze;
+      let totalGold = athGold + teamGold;
+      let totalSilver = athSilver + teamSilver;
+      let totalBronze = athBronze + teamBronze;
 
-      // Athletics & Individual: 1st = 5 Pts, 2nd = 3 Pts, 3rd = 1 Pt
-      const athPoints = (athGold * (athleticsPointsRule.gold || 5)) + (athSilver * (athleticsPointsRule.silver || 3)) + (athBronze * (athleticsPointsRule.bronze || 1));
+      // Athletics & Individual points
+      let athPoints = (athGold * athGoldPts) + (athSilver * athSilverPts) + (athBronze * athBronzePts);
       
-      // Team Games: 1st = 8 Pts, 2nd = 5 Pts, 3rd = 0 Pts (No 3rd points!)
-      const teamPoints = (teamGold * (teamPointsRule.gold || 8)) + (teamSilver * (teamPointsRule.silver || 5)) + (teamBronze * (teamPointsRule.bronze || 0));
+      // Team Games points (e.g. 1st=8 or 7 Pts, 2nd=5 Pts)
+      let teamPoints = (teamGold * teamGoldPts) + (teamSilver * teamSilverPts) + (teamBronze * teamBronzePts);
 
-      const totalPoints = athPoints + teamPoints;
+      let totalPoints = athPoints + teamPoints;
+
+      // Check if admin has set a manual points/medals override for this branch
+      const manual = branchPointsOverride[b.code];
+      const isManual = Boolean(manual && manual.isManual);
+      if (isManual && (dayFilter === 'overall' || manual.applyAllDays)) {
+        if (manual.totalPoints !== undefined && manual.totalPoints !== null && manual.totalPoints !== '') {
+          totalPoints = Number(manual.totalPoints);
+        }
+        if (manual.athGold !== undefined && manual.athGold !== '') athGold = Number(manual.athGold);
+        if (manual.athSilver !== undefined && manual.athSilver !== '') athSilver = Number(manual.athSilver);
+        if (manual.athBronze !== undefined && manual.athBronze !== '') athBronze = Number(manual.athBronze);
+        if (manual.teamGold !== undefined && manual.teamGold !== '') teamGold = Number(manual.teamGold);
+        if (manual.teamSilver !== undefined && manual.teamSilver !== '') teamSilver = Number(manual.teamSilver);
+        if (manual.athPoints !== undefined && manual.athPoints !== '') athPoints = Number(manual.athPoints);
+        if (manual.teamPoints !== undefined && manual.teamPoints !== '') teamPoints = Number(manual.teamPoints);
+        totalGold = athGold + teamGold;
+        totalSilver = athSilver + teamSilver;
+        totalBronze = athBronze;
+      }
 
       return {
         code: b.code,
@@ -829,17 +1041,79 @@ export function AppProvider({ children }) {
         teamGold, teamSilver, teamBronze,
         totalGold, totalSilver, totalBronze,
         athPoints, teamPoints,
-        totalPoints
+        totalPoints,
+        isManual
       };
-    }).sort((a, b) => b.totalPoints - a.totalPoints);
+    }).sort((a, b) => {
+      if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+      if (b.totalGold !== a.totalGold) return b.totalGold - a.totalGold;
+      return b.totalSilver - a.totalSilver;
+    });
+  };
+
+  // Direct Branch Scores CRUD Handlers (Admin direct point updates that sync instantly)
+  const updateBranchScore = (branchCode, scoreData) => {
+    setBranchPointsOverride(prev => {
+      const next = {
+        ...prev,
+        [branchCode]: { ...(prev[branchCode] || {}), ...scoreData, isManual: true }
+      };
+      localStorage.setItem('aahwan_branch_points', JSON.stringify(next));
+      localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(next));
+      saveToCloud({ branchPointsOverride: next });
+      return next;
+    });
+  };
+
+  const resetBranchScore = (branchCode) => {
+    setBranchPointsOverride(prev => {
+      const next = { ...prev };
+      delete next[branchCode];
+      localStorage.setItem('aahwan_branch_points', JSON.stringify(next));
+      localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(next));
+      saveToCloud({ branchPointsOverride: next });
+      return next;
+    });
+  };
+
+  const resetAllBranchScores = () => {
+    setBranchPointsOverride({});
+    localStorage.removeItem('aahwan_branch_points');
+    localStorage.removeItem('AWAHAAN_branch_points');
+    saveToCloud({ branchPointsOverride: {} });
+  };
+
+  const setAllPointsToZero = () => {
+    const zeroScores = {
+      CSE: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true },
+      EE: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true },
+      ME: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true },
+      CE: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true }
+    };
+    setBranchPointsOverride(zeroScores);
+    localStorage.setItem('aahwan_branch_points', JSON.stringify(zeroScores));
+    localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(zeroScores));
+    saveToCloud({ branchPointsOverride: zeroScores });
   };
 
   // Points Rules & Daily Medals Handlers
   const updatePointsRule = (type, rules) => {
     if (type === 'team') {
-      setTeamPointsRule(prev => ({ ...prev, ...rules }));
+      setTeamPointsRule(prev => {
+        const next = { ...prev, ...rules };
+        localStorage.setItem('aahwan_team_points_rule', JSON.stringify(next));
+        localStorage.setItem('AWAHAAN_team_points_rule', JSON.stringify(next));
+        saveToCloud({ teamPointsRule: next });
+        return next;
+      });
     } else {
-      setAthleticsPointsRule(prev => ({ ...prev, ...rules }));
+      setAthleticsPointsRule(prev => {
+        const next = { ...prev, ...rules };
+        localStorage.setItem('aahwan_ath_points_rule', JSON.stringify(next));
+        localStorage.setItem('AWAHAAN_ath_points_rule', JSON.stringify(next));
+        saveToCloud({ athleticsPointsRule: next });
+        return next;
+      });
     }
   };
 
@@ -998,11 +1272,27 @@ export function AppProvider({ children }) {
     const events = safeParseEvents(studentData.events);
     const timestamp = studentData.timestamp || new Date().toISOString();
 
+    const isTeam = studentData.registrationType === 'team' || Boolean(studentData.teamPlayers && studentData.teamPlayers.length > 0);
+    const teamSport = studentData.teamSport || (events.length > 0 ? events[0] : '');
+    const teamPlayers = studentData.teamPlayers || [];
+
     if (!rollNo || !name || !phone) {
-      throw new Error('Name, Roll Number, and WhatsApp Phone are required.');
+      throw new Error(isTeam ? 'Captain Name, Roll Number, and WhatsApp Phone are required.' : 'Name, Roll Number, and WhatsApp Phone are required.');
     }
-    if (events.length === 0) {
+    if (!isTeam && events.length === 0) {
       throw new Error('Please select at least one sports discipline to register.');
+    }
+    if (isTeam && !teamSport) {
+      throw new Error('Please select a team sport discipline.');
+    }
+
+    // Prepare events array for Supabase public.registrations JSONB column
+    let dbEvents = events;
+    if (isTeam) {
+      dbEvents = [teamSport];
+      if (teamPlayers.length > 0) {
+        dbEvents.push(`TEAM_ROSTER:${JSON.stringify(teamPlayers)}`);
+      }
     }
 
     const newReg = {
@@ -1014,7 +1304,13 @@ export function AppProvider({ children }) {
       gender,
       phone,
       email,
-      events,
+      events: isTeam ? [teamSport] : events,
+      registrationType: isTeam ? 'team' : 'individual',
+      captainName: isTeam ? name : '',
+      captainPhone: isTeam ? phone : '',
+      captainRollNo: isTeam ? rollNo : '',
+      teamSport: isTeam ? teamSport : '',
+      teamPlayers: isTeam ? teamPlayers : [],
       timestamp
     };
 
@@ -1032,7 +1328,7 @@ export function AppProvider({ children }) {
       gender,
       phone,
       email,
-      events,
+      events: dbEvents,
       created_at: timestamp
     }).select();
 
@@ -1098,40 +1394,88 @@ export function AppProvider({ children }) {
     }
   };
 
-  // Dignitaries CRUD Handlers
+  // Dignitaries CRUD Handlers (Synchronizes tiers and legacy aliases, saves to localStorage and Cloud immediately)
   const updateDignitary = (tier, index, updatedData) => {
     setDignitaries(prev => {
-      const nextTier = [...(prev[tier] || [])];
+      const targetTier = tier === 'leadership' ? 'tier1' : tier === 'patrons' ? 'tier2' : tier === 'coordinators' ? 'tier3' : tier;
+      const nextTier = [...(prev[targetTier] || [])];
       nextTier[index] = { ...nextTier[index], ...updatedData };
-      return { ...prev, [tier]: nextTier };
+      const nextState = { ...prev, [targetTier]: nextTier };
+
+      if (targetTier === 'tier1') { nextState.tier1 = nextTier; nextState.leadership = nextTier; }
+      else if (targetTier === 'tier2') { nextState.tier2 = nextTier; nextState.patrons = nextTier; }
+      else if (targetTier === 'tier3') { nextState.tier3 = nextTier; nextState.coordinators = nextTier; }
+
+      localStorage.setItem('aahwan_dignitaries', JSON.stringify(nextState));
+      localStorage.setItem('AWAHAAN_dignitaries', JSON.stringify(nextState));
+      saveToCloud({ dignitaries: nextState });
+      return nextState;
     });
   };
 
   const addDignitary = (tier, newPerson) => {
     setDignitaries(prev => {
-      const nextTier = [...(prev[tier] || []), newPerson];
-      return { ...prev, [tier]: nextTier };
+      const targetTier = tier === 'leadership' ? 'tier1' : tier === 'patrons' ? 'tier2' : tier === 'coordinators' ? 'tier3' : tier;
+      const nextTier = [...(prev[targetTier] || []), newPerson];
+      const nextState = { ...prev, [targetTier]: nextTier };
+
+      if (targetTier === 'tier1') { nextState.tier1 = nextTier; nextState.leadership = nextTier; }
+      else if (targetTier === 'tier2') { nextState.tier2 = nextTier; nextState.patrons = nextTier; }
+      else if (targetTier === 'tier3') { nextState.tier3 = nextTier; nextState.coordinators = nextTier; }
+
+      localStorage.setItem('aahwan_dignitaries', JSON.stringify(nextState));
+      localStorage.setItem('AWAHAAN_dignitaries', JSON.stringify(nextState));
+      saveToCloud({ dignitaries: nextState });
+      return nextState;
     });
   };
 
   const removeDignitary = (tier, index) => {
     setDignitaries(prev => {
-      const nextTier = prev[tier].filter((_, i) => i !== index);
-      return { ...prev, [tier]: nextTier };
+      const targetTier = tier === 'leadership' ? 'tier1' : tier === 'patrons' ? 'tier2' : tier === 'coordinators' ? 'tier3' : tier;
+      const nextTier = (prev[targetTier] || []).filter((_, i) => i !== index);
+      const nextState = { ...prev, [targetTier]: nextTier };
+
+      if (targetTier === 'tier1') { nextState.tier1 = nextTier; nextState.leadership = nextTier; }
+      else if (targetTier === 'tier2') { nextState.tier2 = nextTier; nextState.patrons = nextTier; }
+      else if (targetTier === 'tier3') { nextState.tier3 = nextTier; nextState.coordinators = nextTier; }
+
+      localStorage.setItem('aahwan_dignitaries', JSON.stringify(nextState));
+      localStorage.setItem('AWAHAAN_dignitaries', JSON.stringify(nextState));
+      saveToCloud({ dignitaries: nextState });
+      return nextState;
     });
   };
 
   // Sports CRUD Handlers
   const addSport = (newSport) => {
-    setSports(prev => [newSport, ...prev]);
+    setSports(prev => {
+      const updated = [newSport, ...prev];
+      localStorage.setItem('aahwan_sports', JSON.stringify(updated));
+      localStorage.setItem('AWAHAAN_sports', JSON.stringify(updated));
+      saveToCloud({ sports: updated });
+      return updated;
+    });
   };
 
   const updateSport = (id, updatedData) => {
-    setSports(prev => prev.map(s => s.id === id ? { ...s, ...updatedData } : s));
+    setSports(prev => {
+      const updated = prev.map(s => s.id === id ? { ...s, ...updatedData } : s);
+      localStorage.setItem('aahwan_sports', JSON.stringify(updated));
+      localStorage.setItem('AWAHAAN_sports', JSON.stringify(updated));
+      saveToCloud({ sports: updated });
+      return updated;
+    });
   };
 
   const deleteSport = (id) => {
-    setSports(prev => prev.filter(s => s.id !== id));
+    setSports(prev => {
+      const updated = prev.filter(s => s.id !== id);
+      localStorage.setItem('aahwan_sports', JSON.stringify(updated));
+      localStorage.setItem('AWAHAAN_sports', JSON.stringify(updated));
+      saveToCloud({ sports: updated });
+      return updated;
+    });
   };
 
   // Equipment Inventory Handlers
@@ -1277,7 +1621,9 @@ export function AppProvider({ children }) {
       teamPointsRule, setTeamPointsRule,
       athleticsPointsRule, setAthleticsPointsRule,
       updatePointsRule,
-      sportWinners, setSportWinners, assignSportWinner, getStandings, updateSportCategory,
+      teamSquadSizes, setTeamSquadSizes, updateTeamSquadSize, DEFAULT_TEAM_SQUAD_SIZES,
+      branchPointsOverride, updateBranchScore, resetBranchScore, resetAllBranchScores, setAllPointsToZero,
+      sportWinners, setSportWinners, assignSportWinner, getStandings, findSportWinner, updateSportCategory,
       galleryPhotos, addGalleryPhoto, deleteGalleryPhoto,
       registrations, addRegistration, deleteRegistration,
       equipmentList, addEquipment, updateEquipment, deleteEquipment,

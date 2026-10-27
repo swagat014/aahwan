@@ -53,7 +53,10 @@ export default function AdminOverviewTab({ setActiveTab }) {
   const ceAthletes = registrations.filter(r => (r.branch || '').includes('Civil') || (r.branch || '').includes('CE')).length;
 
   const standings = getStandings('overall') || [];
-  const leader = standings[0] || { code: 'TBD', totalPoints: 0, branchName: 'Pending Results' };
+  const allZero = standings.every(b => (b.totalPoints || 0) === 0);
+  const leader = !allZero && (standings[0]?.totalPoints || 0) > 0
+    ? standings[0] 
+    : { code: 'Awaiting', totalPoints: 0, branchName: 'Pre-Tournament (All 0 Pts)' };
 
   // Recent 5 registrations
   const recentRegistrations = [...registrations].slice(0, 5);
@@ -208,7 +211,7 @@ export default function AdminOverviewTab({ setActiveTab }) {
 
           <div>
             <div className="text-2xl font-black text-slate-900 tracking-tight flex items-baseline gap-1.5">
-              <span className="text-emerald-600">{leader.code}</span>
+              <span className={allZero ? 'text-slate-500 font-bold' : 'text-emerald-600'}>{leader.code}</span>
               <span className="text-xs font-black text-slate-500">{leader.totalPoints || 0} Pts</span>
             </div>
             <p className="text-[0.68rem] font-semibold text-slate-400 truncate mt-0.5">
@@ -217,11 +220,15 @@ export default function AdminOverviewTab({ setActiveTab }) {
           </div>
 
           <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[0.65rem] font-bold text-slate-500">
-            <span className="flex items-center gap-1.5">
-              <span>🥇 {leader.totalGold || 0}</span>
-              <span>🥈 {leader.totalSilver || 0}</span>
-              <span>🥉 {leader.totalBronze || 0}</span>
-            </span>
+            {allZero ? (
+              <span className="text-slate-400 text-[0.65rem]">Ranks unlock once points awarded</span>
+            ) : (
+              <span className="flex items-center gap-1.5">
+                <span>🥇 {leader.totalGold || 0}</span>
+                <span>🥈 {leader.totalSilver || 0}</span>
+                <span>🥉 {leader.totalBronze || 0}</span>
+              </span>
+            )}
             <span className="text-emerald-600 font-bold group-hover:translate-x-0.5 transition-transform inline-flex items-center gap-0.5">
               Points <ChevronRight size={12} />
             </span>

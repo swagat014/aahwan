@@ -32,9 +32,13 @@ import {
 } from 'lucide-react';
 import { isGirlsEvent, isBoysEvent, GIRLS_ALLOWED_SPORTS_TITLES } from '../../data/sportsData';
 import PrintableRosterModal from './PrintableRosterModal';
+import { isTeamSportTitle, getTeamSquadSize } from '../StudentRegistrationModal';
 
 export default function SportsTab() {
-  const { sports, addSport, updateSport, deleteSport, updateSportCategory } = useApp();
+  const { 
+    sports, addSport, updateSport, deleteSport, updateSportCategory,
+    teamSquadSizes = {}, updateTeamSquadSize, DEFAULT_TEAM_SQUAD_SIZES 
+  } = useApp();
   
   // UI States
   const [toastMsg, setToastMsg] = useState('');
@@ -68,8 +72,23 @@ export default function SportsTab() {
     time: 'Day 1 - 09:00 AM',
     coordinator: 'Athletic Board',
     desc: '',
-    rules: ['Standard athletic rules apply.', 'Proper sports gear & bib required.']
+    rules: ['Standard athletic rules apply.', 'Proper sports gear & bib required.'],
+    squadSize: 12
   });
+
+  // Team Sports Catalogue for Quick Squad Size Administration
+  const teamSportsConfigList = [
+    { title: 'Volleyball Championship', icon: '🏐', desc: 'Court Power Sport' },
+    { title: 'Badminton Championship', icon: '🏸', desc: 'Racket Team Championship' },
+    { title: 'Kabaddi League', icon: '🤼', desc: 'Pro Mat Raiders & Tackles' },
+    { title: 'Kho-Kho Tournament', icon: '🏃', desc: 'Tactical Chase & Dodge' },
+    { title: 'Football Champions Cup', icon: '⚽', desc: '11-a-side Field Tournament' },
+    { title: 'Cricket Tournament', icon: '🏏', desc: 'Inter-Branch T20 League' },
+    { title: 'Tug of War Championship', icon: '🪢', desc: 'Raw Strength Pull Battle' },
+    { title: 'Table Tennis Championship', icon: '🏓', desc: 'Fast Spin & Counter Battle' },
+    { title: 'Chess Rapid & Blitz Tournament', icon: '♟️', desc: 'Mind Board Grandmaster Squad' },
+    { title: '4 x 400m Relay Race', icon: '🏃‍♂️', desc: 'Grand Finale 4-Leg Sprint' }
+  ];
 
   // Category Definitions
   const categories = [
@@ -263,7 +282,8 @@ export default function SportsTab() {
       time: 'Day 1 - 09:00 AM',
       coordinator: 'Athletic Board',
       desc: '',
-      rules: ['Standard athletic rules apply.', 'Proper sports gear & bib required.']
+      rules: ['Standard athletic rules apply.', 'Proper sports gear & bib required.'],
+      squadSize: 12
     });
     setShowAddModal(true);
   };
@@ -281,7 +301,8 @@ export default function SportsTab() {
       time: sport.time || 'Day 1 - 09:00 AM',
       coordinator: sport.coordinator || 'Athletic Board',
       desc: sport.desc || '',
-      rules: sport.rules || []
+      rules: sport.rules || [],
+      squadSize: teamSquadSizes[sport.title] || getTeamSquadSize(sport.title, teamSquadSizes)
     });
     setShowAddModal(true);
   };
@@ -305,6 +326,9 @@ export default function SportsTab() {
         divisionName: divName,
         categoryName: catName
       });
+      if (sportForm.squadSize) {
+        updateTeamSquadSize(sportForm.title, sportForm.squadSize);
+      }
       setToastMsg(`Updated "${sportForm.title}" successfully`);
     } else {
       addSport({
@@ -314,6 +338,9 @@ export default function SportsTab() {
         categoryName: catName,
         image: '/assets/images/hero_sports_banner_1786976961106.png'
       });
+      if (sportForm.squadSize) {
+        updateTeamSquadSize(sportForm.title, sportForm.squadSize);
+      }
       setToastMsg(`Added "${sportForm.title}" discipline`);
     }
 
@@ -701,6 +728,121 @@ export default function SportsTab() {
         </div>
       </div>
 
+      {/* DEDICATED SECTION: TEAM SPORTS SQUAD SIZES & PLAYER LIMITS MANAGEMENT */}
+      <div className="bg-gradient-to-r from-amber-950 via-slate-900 to-amber-950 border border-amber-800/60 rounded-2xl p-3.5 sm:p-4 text-white shadow-lg relative overflow-hidden space-y-3">
+        <div className="absolute top-0 right-0 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 relative z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center text-slate-950 shadow-md font-black">
+              <Users size={16} />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h4 className="text-xs sm:text-sm font-black text-amber-100 tracking-tight">
+                  Team Sports Squad Size & Player Limits Manager
+                </h4>
+                <span className="px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30 font-black text-[0.6rem] uppercase tracking-wider">
+                  Admin Managed • Cloud Synced
+                </span>
+              </div>
+              <p className="text-[0.65rem] text-slate-300 font-medium">
+                Admin can configure required squad sizes for each team sport (e.g. Tug of War, Chess, Table Tennis, Cricket, etc.). Changes instantly update the Student Registration Form on all devices.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Responsive Grid of Team Sports with Steppers & Quick Presets */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 relative z-10">
+          {teamSportsConfigList.map((sport) => {
+            const currentSize = teamSquadSizes[sport.title] || getTeamSquadSize(sport.title, teamSquadSizes);
+            return (
+              <div
+                key={sport.title}
+                className="p-2.5 bg-slate-950/70 border border-amber-500/20 rounded-xl hover:border-amber-400/40 transition-all flex flex-col justify-between space-y-2 group"
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-base">{sport.icon}</span>
+                      <span className="text-xs font-black text-white truncate group-hover:text-amber-300 transition-colors">
+                        {sport.title.replace(' Tournament', '').replace(' Championship', '').replace(' Champions Cup', '').replace(' League', '')}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[0.6rem] text-slate-400 truncate">{sport.desc}</p>
+                </div>
+
+                <div className="pt-2 border-t border-white/10 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[0.6rem] uppercase font-bold text-amber-200/80">Squad Size:</span>
+                    <div className="flex items-center gap-1 bg-amber-950/60 p-0.5 rounded-lg border border-amber-500/30">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = Math.max(1, currentSize - 1);
+                          updateTeamSquadSize(sport.title, next);
+                          setToastMsg(`Updated ${sport.title} squad size to ${next}`);
+                        }}
+                        className="w-5 h-5 rounded bg-amber-500/20 hover:bg-amber-500 text-amber-200 hover:text-slate-950 font-black text-xs flex items-center justify-center transition cursor-pointer"
+                        title="Decrease squad size"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={32}
+                        value={currentSize}
+                        onChange={(e) => {
+                          const next = Math.max(1, Math.min(32, parseInt(e.target.value, 10) || 1));
+                          updateTeamSquadSize(sport.title, next);
+                        }}
+                        className="w-7 text-center bg-transparent text-amber-300 font-mono font-black text-xs focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = Math.min(32, currentSize + 1);
+                          updateTeamSquadSize(sport.title, next);
+                          setToastMsg(`Updated ${sport.title} squad size to ${next}`);
+                        }}
+                        className="w-5 h-5 rounded bg-amber-500/20 hover:bg-amber-500 text-amber-200 hover:text-slate-950 font-black text-xs flex items-center justify-center transition cursor-pointer"
+                        title="Increase squad size"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Preset Pills */}
+                  <div className="flex items-center justify-end gap-1">
+                    {[4, 8, 12, 16].map((num) => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => {
+                          updateTeamSquadSize(sport.title, num);
+                          setToastMsg(`Set ${sport.title} to ${num} players`);
+                        }}
+                        className={`px-1.5 py-0.2 rounded text-[0.58rem] font-black transition cursor-pointer ${
+                          currentSize === num
+                            ? 'bg-amber-500 text-slate-950 shadow-xs'
+                            : 'bg-white/10 text-slate-300 hover:bg-white/20'
+                        }`}
+                      >
+                        {num}P
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* 3. FILTER & SEARCH CONTROL BAR */}
       <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-2.5 space-y-2.5 shadow-2xs">
         
@@ -861,6 +1003,9 @@ export default function SportsTab() {
                     </div>
                   </th>
 
+                  {/* Squad Size / Players */}
+                  <th className="py-2.5 px-3 text-center">Squad Size / Players</th>
+
                   {/* Venue & Schedule */}
                   <th 
                     onClick={() => handleSort('venue')}
@@ -991,6 +1136,46 @@ export default function SportsTab() {
                             <option value="boys">Boys Division Only</option>
                             <option value="girls">Girls Division Only</option>
                           </select>
+                        </td>
+
+                        {/* Squad Size / Players */}
+                        <td className="py-2 px-3 text-center whitespace-nowrap">
+                          {(sport.category === 'team' || isTeamSportTitle(sport.title)) ? (
+                            <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200/90 rounded-lg p-0.5 shadow-2xs">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const current = teamSquadSizes[sport.title] || getTeamSquadSize(sport.title, teamSquadSizes);
+                                  const next = Math.max(1, current - 1);
+                                  updateTeamSquadSize(sport.title, next);
+                                  setToastMsg(`Set ${sport.title} squad to ${next} players`);
+                                }}
+                                className="w-5 h-5 rounded bg-white hover:bg-amber-100 text-amber-900 font-black text-xs flex items-center justify-center transition cursor-pointer shadow-2xs"
+                                title="Decrease squad size"
+                              >
+                                -
+                              </button>
+                              <span className="font-mono font-black text-xs text-amber-950 px-1 min-w-[20px]">
+                                {teamSquadSizes[sport.title] || getTeamSquadSize(sport.title, teamSquadSizes)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const current = teamSquadSizes[sport.title] || getTeamSquadSize(sport.title, teamSquadSizes);
+                                  const next = Math.min(32, current + 1);
+                                  updateTeamSquadSize(sport.title, next);
+                                  setToastMsg(`Set ${sport.title} squad to ${next} players`);
+                                }}
+                                className="w-5 h-5 rounded bg-white hover:bg-amber-100 text-amber-900 font-black text-xs flex items-center justify-center transition cursor-pointer shadow-2xs"
+                                title="Increase squad size"
+                              >
+                                +
+                              </button>
+                              <span className="text-[0.6rem] font-bold text-amber-800 pr-1">Players</span>
+                            </div>
+                          ) : (
+                            <span className="text-[0.62rem] text-slate-400 font-semibold italic">1 Athlete (Indiv)</span>
+                          )}
                         </td>
 
                         {/* Venue & Schedule */}
@@ -1214,6 +1399,45 @@ export default function SportsTab() {
                     </select>
                   </div>
                 </div>
+
+                {/* Squad Size Stepper in Grid View */}
+                {(sport.category === 'team' || isTeamSportTitle(sport.title)) && (
+                  <div className="bg-amber-50/80 border border-amber-200/80 rounded-lg p-1.5 flex items-center justify-between">
+                    <span className="text-[0.6rem] font-black uppercase text-amber-900 flex items-center gap-1">
+                      <Users size={11} className="text-amber-600" />
+                      <span>Squad:</span>
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = teamSquadSizes[sport.title] || getTeamSquadSize(sport.title, teamSquadSizes);
+                          const next = Math.max(1, current - 1);
+                          updateTeamSquadSize(sport.title, next);
+                          setToastMsg(`Set ${sport.title} squad to ${next} players`);
+                        }}
+                        className="w-4 h-4 rounded bg-white hover:bg-amber-200 text-amber-950 font-black text-xs flex items-center justify-center cursor-pointer shadow-2xs"
+                      >
+                        -
+                      </button>
+                      <span className="font-mono font-black text-xs text-amber-950 px-1">
+                        {teamSquadSizes[sport.title] || getTeamSquadSize(sport.title, teamSquadSizes)} Players
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = teamSquadSizes[sport.title] || getTeamSquadSize(sport.title, teamSquadSizes);
+                          const next = Math.min(32, current + 1);
+                          updateTeamSquadSize(sport.title, next);
+                          setToastMsg(`Set ${sport.title} squad to ${next} players`);
+                        }}
+                        className="w-4 h-4 rounded bg-white hover:bg-amber-200 text-amber-950 font-black text-xs flex items-center justify-center cursor-pointer shadow-2xs"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Venue & Schedule */}
                 <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[0.62rem] text-slate-500">
@@ -1462,6 +1686,46 @@ export default function SportsTab() {
                   </select>
                 </div>
               </div>
+
+              {/* Team Squad Size Field */}
+              {(sportForm.category === 'team' || isTeamSportTitle(sportForm.title)) && (
+                <div className="bg-amber-50/80 border border-amber-200/90 rounded-xl p-2.5 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[0.65rem] uppercase font-black text-amber-900">
+                      Required Team Squad Size (Number of Players) *
+                    </label>
+                    <span className="font-mono font-black text-amber-800 text-xs">
+                      {sportForm.squadSize || 12} Players
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      max={32}
+                      value={sportForm.squadSize || 12}
+                      onChange={(e) => setSportForm({ ...sportForm, squadSize: Math.max(1, Math.min(32, parseInt(e.target.value, 10) || 1)) })}
+                      className="w-24 px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg text-slate-900 font-mono font-black text-xs focus:outline-none focus:border-amber-500"
+                    />
+                    <div className="flex items-center gap-1 flex-wrap">
+                      {[4, 6, 8, 10, 12, 16].map(num => (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setSportForm({ ...sportForm, squadSize: num })}
+                          className={`px-2 py-1 rounded text-[0.62rem] font-black border transition cursor-pointer ${
+                            (sportForm.squadSize || 12) === num
+                              ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-2xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-amber-100'
+                          }`}
+                        >
+                          {num}P
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-2">
                 <div>

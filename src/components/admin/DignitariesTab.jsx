@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 
 export default function DignitariesTab() {
-  const { dignitaries, updateDignitary, addDignitary, removeDignitary, handlePhotoUpload } = useApp();
+  const { dignitaries, updateDignitary, addDignitary, removeDignitary, handlePhotoUpload, saveToCloud } = useApp();
   const [activeTier, setActiveTier] = useState('tier1');
   const [uploading, setUploading] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
@@ -51,7 +51,7 @@ export default function DignitariesTab() {
     try {
       const publicUrl = await handlePhotoUpload(file, 'dignitaries');
       onComplete(publicUrl);
-      setSavedMsg('Photo uploaded to storage successfully!');
+      setSavedMsg('Photo uploaded successfully!');
       setTimeout(() => setSavedMsg(''), 2500);
     } catch (err) {
       console.error(err);
@@ -72,7 +72,7 @@ export default function DignitariesTab() {
       quote: '' 
     });
     setShowAddModal(false);
-    setSavedMsg('Officer added to roster successfully!');
+    setSavedMsg('Officer added & saved to live website!');
     setTimeout(() => setSavedMsg(''), 2500);
   };
 
@@ -81,7 +81,7 @@ export default function DignitariesTab() {
     if (!editingPerson) return;
     updateDignitary(editingPerson.tier, editingPerson.index, editingPerson.data);
     setEditingPerson(null);
-    setSavedMsg('Officer details updated successfully!');
+    setSavedMsg('Officer details updated & saved to live website!');
     setTimeout(() => setSavedMsg(''), 2500);
   };
 
@@ -117,6 +117,22 @@ export default function DignitariesTab() {
                 <CheckCircle size={12} /> {savedMsg}
               </span>
             )}
+
+            <button
+              onClick={async () => {
+                setUploading(true);
+                await saveToCloud({ dignitaries });
+                setUploading(false);
+                setSavedMsg('Synced to Live Website!');
+                setTimeout(() => setSavedMsg(''), 2500);
+              }}
+              disabled={uploading}
+              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="Sync current officer roster to Supabase and live website"
+            >
+              <Save size={13} />
+              <span>Sync Live Site</span>
+            </button>
 
             <button
               onClick={() => setShowAddModal(true)}

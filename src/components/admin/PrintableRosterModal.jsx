@@ -19,7 +19,7 @@ const isAthleticEvent = (title = '', category = '') => {
     t.includes('relay') || t.includes('jump') || t.includes('throw') ||
     t.includes('shot put') || t.includes('discus') || t.includes('javelin') ||
     t.includes('athletics') || t.includes('track') || t.includes('hurdle') ||
-    t.includes('race') || t.includes('tug of war') || t.includes('tugofwar')
+    t.includes('race')
   );
 };
 
@@ -160,28 +160,50 @@ export default function PrintableRosterModal({ sportTitle, onClose }) {
     }
   }, [selectedSportTitle, sportObj, isMasterAthletics, isMasterAllSports]);
 
-  // Filter athletes who have participated
+  // Filter athletes who have participated (expands squad players on team sport sheets)
   const allFilteredAthletes = useMemo(() => {
-    return registrations.filter(r => {
-      const studentEvents = r.events || [];
-
-      // If Master Athletics: check if student registered for ANY athletic discipline
-      if (isMasterAthletics) {
-        return studentEvents.some(e => isAthleticEvent(e));
-      }
-
-      // If Master All Sports: includes all participating students
-      if (isMasterAllSports) {
-        return studentEvents.length > 0;
-      }
-
-      // If specific sport: match sport title
+    const list = [];
+    registrations.forEach(r => {
+      const studentEvents = (r.events || []).filter(e => typeof e === 'string' && !e.startsWith('TEAM_ROSTER:'));
+      const isTeam = r.registrationType === 'team' || Boolean(r.teamPlayers && r.teamPlayers.length > 0);
       const cur = (selectedSportTitle || '').trim().toLowerCase();
-      return studentEvents.some(e => {
-        const ev = (e || '').trim().toLowerCase();
-        return ev === cur || ev.includes(cur) || cur.includes(ev);
-      });
+
+      let matches = false;
+      if (isMasterAthletics) {
+        matches = studentEvents.some(e => isAthleticEvent(e));
+      } else if (isMasterAllSports) {
+        matches = studentEvents.length > 0 || isTeam;
+      } else {
+        matches = studentEvents.some(e => {
+          const ev = (e || '').trim().toLowerCase();
+          return ev === cur || ev.includes(cur) || cur.includes(ev);
+        }) || (r.teamSport && r.teamSport.toLowerCase().includes(cur));
+      }
+
+      if (!matches) return;
+
+      if (isTeam && r.teamPlayers && r.teamPlayers.length > 0 && !isMasterAthletics && !isMasterAllSports) {
+        // Expand all 12 or 16 squad players so each player is printed on the official match sheet
+        r.teamPlayers.forEach(p => {
+          list.push({
+            id: `${r.id}-${p.rollNo || p.name}`,
+            rollNo: p.rollNo || r.rollNo,
+            name: `${p.name}${p.isCaptain ? ' (Team Captain)' : ''}`,
+            branch: r.branch,
+            year: p.year || r.year,
+            gender: r.gender,
+            phone: p.phone || r.phone,
+            events: [r.teamSport || selectedSportTitle],
+            isCaptain: p.isCaptain,
+            isTeamPlayer: true,
+            teamCaptainName: r.name
+          });
+        });
+      } else {
+        list.push(r);
+      }
     });
+    return list;
   }, [registrations, selectedSportTitle, isMasterAthletics, isMasterAllSports]);
 
   // Apply division & branch filters

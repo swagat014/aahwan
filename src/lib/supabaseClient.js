@@ -49,11 +49,44 @@ export const BUCKET_NAME = 'AWAHAAN';
 /**
  * Helper to convert file to persistent Base64 Data URL
  */
-export function readFileAsDataURL(file) {
+export function readFileAsDataURL(file, maxWidth = 600, maxHeight = 600, quality = 0.82) {
   return new Promise((resolve) => {
     if (!file) return resolve('');
     const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result || '');
+    reader.onload = (e) => {
+      const rawDataUrl = e.target.result;
+      if (typeof window === 'undefined' || !window.Image) {
+        return resolve(rawDataUrl || '');
+      }
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width <= maxWidth && height <= maxHeight && file.size < 120 * 1024) {
+          return resolve(rawDataUrl);
+        }
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressedUrl);
+        } catch (canvasErr) {
+          resolve(rawDataUrl);
+        }
+      };
+      img.onerror = () => resolve(rawDataUrl || '');
+      img.src = rawDataUrl;
+    };
     reader.onerror = () => resolve('');
     reader.readAsDataURL(file);
   });

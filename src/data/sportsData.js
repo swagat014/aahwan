@@ -385,7 +385,7 @@ export const sportsData = [
   }
 ];
 
-// The 14 official sports permitted exclusively for Girls Division
+// Official sports permitted for Girls Division (14 Core + Dual Division Sports)
 export const GIRLS_ALLOWED_SPORTS_TITLES = [
   '100m Sprint',
   '200m Sprint',
@@ -400,7 +400,8 @@ export const GIRLS_ALLOWED_SPORTS_TITLES = [
   'Chess Rapid & Blitz Tournament',
   'Kho-Kho Tournament',
   'Kabaddi League',
-  'Tug of War Championship'
+  'Tug of War Championship',
+  'Table Tennis Championship'
 ];
 
 /**
@@ -418,7 +419,7 @@ export const isGirlsEvent = (sportOrTitle) => {
   const t = title.toLowerCase().trim();
   const i = id.toLowerCase().trim();
 
-  // Strict check matching the 14 approved events
+  // Strict check matching the approved events
   if (t.includes('100m') || i.includes('100m')) return true;
   if (t.includes('200m') || i.includes('200m')) return true;
   if (t.includes('400m') || i.includes('400m')) return true;
@@ -433,6 +434,7 @@ export const isGirlsEvent = (sportOrTitle) => {
   if (t.includes('kho') || i.includes('khokho')) return true;
   if (t.includes('kabaddi') || t.includes('kabbadi') || i.includes('kabaddi')) return true;
   if (t.includes('tug of war') || t.includes('tug-of-war') || i.includes('tugofwar')) return true;
+  if (t.includes('table tennis') || t.includes('tabletennis') || i.includes('tabletennis')) return true;
 
   return false;
 };

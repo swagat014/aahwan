@@ -110,46 +110,69 @@ export default function Leaderboard() {
         {/* STANDINGS CONTAINER */}
         <div className="max-w-4xl mx-auto bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xl">
 
-          {/* Top 3 Podium Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 p-5 sm:p-8 bg-gradient-to-b from-amber-50/40 via-slate-50 to-white items-end border-b border-slate-200">
-            {currentStandings.slice(0, 3).map((branch, idx) => {
-              const rankInfo = rankColors[idx] || rankColors[0];
+          {/* Top 3 Podium Cards (Hidden if all branches have 0 points) */}
+          {(() => {
+            const allZero = currentStandings.every(b => (b.totalPoints || 0) === 0);
+            const eligiblePodium = currentStandings.filter(b => (b.totalPoints || 0) > 0).slice(0, 3);
+
+            if (allZero || eligiblePodium.length === 0) {
               return (
-                <motion.div
-                  key={`podium-${branch.code || idx}`}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.4, delay: idx * 0.1 }}
-                  className={`bg-white border rounded-2xl p-5 text-center shadow-md ${
-                    idx === 0 ? 'border-amber-400 shadow-xl ring-2 ring-amber-400/30' : 'border-slate-200'
-                  }`}
-                >
-                  <div className={`w-10 h-10 rounded-full ${rankInfo.bg} text-white font-black text-sm flex items-center justify-center -mt-10 mx-auto border-2 border-white shadow-md mb-2`}>
-                    {idx + 1}
+                <div className="p-8 sm:p-12 text-center bg-gradient-to-b from-amber-50/50 via-slate-50 to-white border-b border-slate-200">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-3 shadow-xs border border-amber-200">
+                    <Trophy size={26} className="text-amber-600" />
                   </div>
-
-                  <span className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 block mb-1">
-                    {rankInfo.badge}
-                  </span>
-
-                  <h3 className="font-black text-slate-900 text-base leading-tight">
-                    {branch.displayName}
+                  <h3 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight mb-1.5">
+                    Championship Standings In Progress
                   </h3>
-                  
-                  <div className="flex items-center justify-center gap-2 text-xs font-black text-slate-700 mt-2.5 pt-2 border-t border-slate-100">
-                    <span className="text-amber-600">🥇 {branch.totalGold}</span>
-                    <span className="text-slate-600">🥈 {branch.totalSilver}</span>
-                    <span className="text-amber-800">🥉 {branch.totalBronze}</span>
-                  </div>
-
-                  <p className="text-sm font-black text-amber-700 mt-2 bg-amber-50 py-1.5 rounded-xl border border-amber-200">
-                    {branch.totalPoints} PTS
+                  <p className="text-xs sm:text-sm text-slate-500 font-semibold max-w-lg mx-auto leading-relaxed">
+                    All branches are currently at 0 points. Official champion ranks (1st, 2nd, 3rd) and podium trophies will unlock as match events conclude and points are officially awarded by the sports committee.
                   </p>
-                </motion.div>
+                </div>
               );
-            })}
-          </div>
+            }
+
+            return (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 p-5 sm:p-8 bg-gradient-to-b from-amber-50/40 via-slate-50 to-white items-end border-b border-slate-200">
+                {eligiblePodium.map((branch, idx) => {
+                  const rankInfo = rankColors[idx] || rankColors[0];
+                  return (
+                    <motion.div
+                      key={`podium-${branch.code || idx}`}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.4, delay: idx * 0.1 }}
+                      className={`bg-white border rounded-2xl p-5 text-center shadow-md ${
+                        idx === 0 ? 'border-amber-400 shadow-xl ring-2 ring-amber-400/30' : 'border-slate-200'
+                      }`}
+                    >
+                      <div className={`w-10 h-10 rounded-full ${rankInfo.bg} text-white font-black text-sm flex items-center justify-center -mt-10 mx-auto border-2 border-white shadow-md mb-2`}>
+                        {idx + 1}
+                      </div>
+
+                      <span className="text-[0.65rem] font-black uppercase tracking-widest text-slate-400 block mb-1">
+                        {rankInfo.badge}
+                      </span>
+
+                      <h3 className="font-black text-slate-900 text-base leading-tight">
+                        {branch.displayName}
+                      </h3>
+                      
+                      <div className="flex items-center justify-center gap-2 text-xs font-black text-slate-700 mt-2.5 pt-2 border-t border-slate-100">
+                        <span className="text-amber-600">🥇 {branch.totalGold}</span>
+                        <span className="text-slate-600">🥈 {branch.totalSilver}</span>
+                        <span className="text-amber-800">🥉 {branch.totalBronze}</span>
+                      </div>
+
+                      <p className="text-sm font-black text-amber-700 mt-2 bg-amber-50 py-1.5 rounded-xl border border-amber-200">
+                        {branch.totalPoints} PTS
+                      </p>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* METALLIC SCORECARD TABLE */}
           <div className="overflow-x-auto scrollbar-thin">
@@ -164,34 +187,45 @@ export default function Leaderboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-bold">
-                {currentStandings.map((row, idx) => (
-                  <tr key={`table-row-${row.code || idx}`} className="hover:bg-amber-50/40 transition-colors">
-                    <td className="py-3 px-3 sm:py-4 sm:px-6 font-mono font-black text-slate-900">
-                      #{idx + 1}
-                    </td>
+                {currentStandings.map((row, idx) => {
+                  const allZero = currentStandings.every(b => (b.totalPoints || 0) === 0);
+                  const hasPoints = (row.totalPoints || 0) > 0;
 
-                    <td className="py-3 px-3 sm:py-4 sm:px-6 font-black text-slate-900 flex items-center gap-2">
-                      <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                        {getBranchIcon(row.code)}
-                      </div>
-                      <span className="truncate max-w-[130px] sm:max-w-none">{row.displayName}</span>
-                    </td>
+                  return (
+                    <tr key={`table-row-${row.code || idx}`} className="hover:bg-amber-50/40 transition-colors">
+                      <td className="py-3 px-3 sm:py-4 sm:px-6 font-mono font-black text-slate-900">
+                        {allZero || !hasPoints ? (
+                          <span className="text-slate-400 font-bold">—</span>
+                        ) : (
+                          `#${idx + 1}`
+                        )}
+                      </td>
 
-                    <td className="py-3 px-2.5 sm:py-4 sm:px-6 text-center font-bold text-slate-700 whitespace-nowrap">
-                      🥇{row.athGold} 🥈{row.athSilver} 🥉{row.athBronze}
-                    </td>
+                      <td className="py-3 px-3 sm:py-4 sm:px-6 font-black text-slate-900 flex items-center gap-2">
+                        <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                          {getBranchIcon(row.code)}
+                        </div>
+                        <span className="truncate max-w-[130px] sm:max-w-none">{row.displayName}</span>
+                      </td>
 
-                    <td className="py-3 px-2.5 sm:py-4 sm:px-6 text-center font-bold text-slate-700 whitespace-nowrap">
-                      🥇{row.teamGold} 🥈{row.teamSilver}
-                    </td>
+                      <td className="py-3 px-2.5 sm:py-4 sm:px-6 text-center font-bold text-slate-700 whitespace-nowrap">
+                        🥇{row.athGold} 🥈{row.athSilver} 🥉{row.athBronze}
+                      </td>
 
-                    <td className="py-3 px-3 sm:py-4 sm:px-6 text-right whitespace-nowrap">
-                      <span className="px-2.5 sm:px-3.5 py-1 bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-full shadow-xs">
-                        {row.totalPoints} PTS
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                      <td className="py-3 px-2.5 sm:py-4 sm:px-6 text-center font-bold text-slate-700 whitespace-nowrap">
+                        🥇{row.teamGold} 🥈{row.teamSilver}
+                      </td>
+
+                      <td className="py-3 px-3 sm:py-4 sm:px-6 text-right whitespace-nowrap">
+                        <span className={`px-2.5 sm:px-3.5 py-1 font-black text-xs sm:text-sm rounded-full shadow-xs ${
+                          hasPoints ? 'bg-slate-900 text-amber-400' : 'bg-slate-100 text-slate-500'
+                        }`}>
+                          {row.totalPoints || 0} PTS
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
