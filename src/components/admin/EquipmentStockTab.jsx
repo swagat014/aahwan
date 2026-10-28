@@ -225,17 +225,27 @@ export default function EquipmentStockTab({ setActiveTab }) {
   };
 
   // Quick Inline Quantity Adjustment (+ / -)
-  const handleQuickQtyChange = (item, delta) => {
-    const current = Number(item.totalQty) || 0;
+  const handleQuickQtyChange = async (item, delta) => {
+    const current = Number(item.totalQty ?? item.total_qty) || 0;
     const newQty = Math.max(1, current + delta);
-    updateEquipment(item.id, { ...item, totalQty: newQty });
+    try {
+      await updateEquipment(item.id, { ...item, totalQty: newQty, total_qty: newQty });
+      showToast(`Updated ${item.name} stock to ${newQty}. Synced to database.`);
+    } catch (err) {
+      showToast('Failed to update stock quantity', 'error');
+    }
   };
 
   // Save Inline Direct Edit
-  const handleSaveInlineQty = (item) => {
+  const handleSaveInlineQty = async (item) => {
     const parsed = parseInt(inlineQtyValue, 10);
     if (!isNaN(parsed) && parsed >= 1) {
-      updateEquipment(item.id, { ...item, totalQty: parsed });
+      try {
+        await updateEquipment(item.id, { ...item, totalQty: parsed, total_qty: parsed });
+        showToast(`Saved ${item.name} stock: ${parsed}. Synced to database.`);
+      } catch (err) {
+        showToast('Failed to save quantity', 'error');
+      }
     }
     setInlineEditingId(null);
   };
@@ -362,22 +372,32 @@ export default function EquipmentStockTab({ setActiveTab }) {
   };
 
   // Bulk Operations
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     if (selectedItemIds.length === 0) return;
     if (confirm(`Permanently remove ${selectedItemIds.length} selected equipment items from inventory?`)) {
-      selectedItemIds.forEach(id => deleteEquipment(id));
-      setSelectedItemIds([]);
+      try {
+        await Promise.all(selectedItemIds.map(id => deleteEquipment(id)));
+        showToast(`Removed ${selectedItemIds.length} items from inventory.`);
+        setSelectedItemIds([]);
+      } catch (err) {
+        showToast('Failed to delete selected items', 'error');
+      }
     }
   };
 
-  const handleBulkQtyAdjust = (delta) => {
-    selectedItemIds.forEach(id => {
-      const item = equipmentList.find(e => e.id === id);
-      if (item) {
-        const newQty = Math.max(1, (Number(item.totalQty) || 0) + delta);
-        updateEquipment(id, { ...item, totalQty: newQty });
-      }
-    });
+  const handleBulkQtyAdjust = async (delta) => {
+    try {
+      await Promise.all(selectedItemIds.map(async id => {
+        const item = equipmentList.find(e => e.id === id);
+        if (item) {
+          const newQty = Math.max(1, (Number(item.totalQty ?? item.total_qty) || 0) + delta);
+          await updateEquipment(id, { ...item, totalQty: newQty, total_qty: newQty });
+        }
+      }));
+      showToast(`Adjusted quantity for ${selectedItemIds.length} items.`);
+    } catch (err) {
+      showToast('Failed to adjust bulk quantities', 'error');
+    }
   };
 
   // CSV Export
@@ -473,36 +493,42 @@ export default function EquipmentStockTab({ setActiveTab }) {
   };
 
   // Handle Quick Issue Submit
-  const handleQuickIssueSubmit = (e) => {
+  const handleQuickIssueSubmit = async (e) => {
     e.preventDefault();
     if (!quickIssueItem || !quickIssueData.borrowerName.trim() || !quickIssueData.rollNo.trim()) return;
 
     const issued = activeIssuedLogs
-      .filter(l => l.equipmentId === quickIssueItem.id)
+      .filter(l => (l.equipmentId || l.equipment_id) === quickIssueItem.id)
       .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-    const avail = Math.max(0, (Number(quickIssueItem.totalQty) || 0) - issued);
+    const avail = Math.max(0, (Number(quickIssueItem.totalQty ?? quickIssueItem.total_qty) || 0) - issued);
 
     if (Number(quickIssueData.qty) > avail) {
       alert(`Cannot issue ${quickIssueData.qty} units. Only ${avail} available!`);
       return;
     }
 
-    issueEquipment({
-      equipmentId: quickIssueItem.id,
-      equipmentName: quickIssueItem.name,
-      borrowerName: quickIssueData.borrowerName.trim(),
-      rollNo: quickIssueData.rollNo.trim().toUpperCase(),
-      branch: quickIssueData.branch,
-      qty: Number(quickIssueData.qty),
-      expectedReturn: quickIssueData.expectedReturn,
-      notes: quickIssueData.notes
-    });
+    try {
+      await issueEquipment({
+        equipmentId: quickIssueItem.id,
+        equipmentName: quickIssueItem.name,
+        category: quickIssueItem.category || 'General',
+        borrowerName: quickIssueData.borrowerName.trim(),
+        rollNo: quickIssueData.rollNo.trim().toUpperCase(),
+        branch: quickIssueData.branch,
+        qty: Number(quickIssueData.qty),
+        expectedReturn: quickIssueData.expectedReturn,
+        notes: quickIssueData.notes
+      });
 
-    setQuickIssueSuccessMsg(`Successfully issued ${quickIssueData.qty}x ${quickIssueItem.name} to ${quickIssueData.borrowerName}!`);
-    setTimeout(() => {
-      setQuickIssueItem(null);
-      setQuickIssueSuccessMsg('');
-    }, 1200);
+      setQuickIssueSuccessMsg(`Successfully issued ${quickIssueData.qty}x ${quickIssueItem.name} to ${quickIssueData.borrowerName}!`);
+      showToast(`Issued ${quickIssueData.qty}x ${quickIssueItem.name} to ${quickIssueData.borrowerName}. Synced to database.`);
+      setTimeout(() => {
+        setQuickIssueItem(null);
+        setQuickIssueSuccessMsg('');
+      }, 1200);
+    } catch (err) {
+      showToast(err.message || 'Failed to issue equipment', 'error');
+    }
   };
 
   // Handle Equipment Add/Edit Submit

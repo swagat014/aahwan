@@ -71,6 +71,92 @@ function normalizeDignitariesStructure(parsed) {
 }
 
 /**
+ * Normalizes Equipment Item structure ensuring both camelCase (totalQty) and snake_case (total_qty)
+ * exist and numeric fields are always valid numbers.
+ */
+export function normalizeEquipmentItem(item) {
+  if (!item || typeof item !== 'object') return null;
+  const totalQty = Number(item.totalQty ?? item.total_qty ?? item.qty ?? 0);
+  return {
+    id: String(item.id || `eq-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`),
+    name: String(item.name || '').trim(),
+    category: String(item.category || 'General').trim(),
+    totalQty: totalQty,
+    total_qty: totalQty,
+    condition: String(item.condition || 'Good Condition'),
+    location: String(item.location || 'Main Sports Store'),
+    notes: String(item.notes || ''),
+    created_at: item.created_at || new Date().toISOString()
+  };
+}
+
+/**
+ * Normalizes Equipment Log structure ensuring complete property coverage for both
+ * camelCase and snake_case database rows.
+ */
+export function normalizeEquipmentLog(log) {
+  if (!log || typeof log !== 'object') return null;
+  const qty = Number(log.qty ?? 1);
+  const returnedCount = Number(log.returnedCount ?? log.returned_count ?? 0);
+  const equipmentId = String(log.equipmentId ?? log.equipment_id ?? '');
+  const equipmentName = String(log.equipmentName ?? log.equipment_name ?? '');
+  const borrowerName = String(log.borrowerName ?? log.borrower_name ?? '');
+  const rollNo = String(log.rollNo ?? log.roll_no ?? '');
+  const borrowerPhone = String(log.borrowerPhone ?? log.borrower_phone ?? '');
+  const issueDate = String(log.issueDate ?? log.issue_date ?? '');
+  const issueTimestamp = log.issueTimestamp ?? log.issue_timestamp ?? null;
+  const expectedReturn = String(log.expectedReturn ?? log.expected_return ?? '');
+  const expectedReturnTimestamp = log.expectedReturnTimestamp ?? log.expected_return_timestamp ?? null;
+  const returnDate = log.returnDate ?? log.return_date ?? null;
+  const returnTimestamp = log.returnTimestamp ?? log.return_timestamp ?? null;
+  const returnCondition = log.returnCondition ?? log.return_condition ?? null;
+  const returnNotes = log.returnNotes ?? log.return_notes ?? null;
+  const issueCondition = log.issueCondition ?? log.issue_condition ?? 'Good Condition';
+  const purpose = log.purpose ?? 'Practice Match & Training';
+
+  return {
+    id: String(log.id || `iss-${Date.now().toString().slice(-6)}`),
+    equipmentId,
+    equipment_id: equipmentId,
+    equipmentName,
+    equipment_name: equipmentName,
+    category: String(log.category || 'General'),
+    borrowerName,
+    borrower_name: borrowerName,
+    rollNo,
+    roll_no: rollNo,
+    branch: String(log.branch || 'CSE'),
+    borrowerPhone,
+    borrower_phone: borrowerPhone,
+    qty,
+    status: String(log.status || 'issued'),
+    issueDate,
+    issue_date: issueDate,
+    issueTimestamp,
+    issue_timestamp: issueTimestamp,
+    expectedReturn,
+    expected_return: expectedReturn,
+    expectedReturnTimestamp,
+    expected_return_timestamp: expectedReturnTimestamp,
+    returnedCount,
+    returned_count: returnedCount,
+    returnDate,
+    return_date: returnDate,
+    returnTimestamp,
+    return_timestamp: returnTimestamp,
+    returnCondition,
+    return_condition: returnCondition,
+    returnNotes,
+    return_notes: returnNotes,
+    issueCondition,
+    issue_condition: issueCondition,
+    purpose,
+    notes: String(log.notes || ''),
+    created_at: log.created_at || new Date().toISOString()
+  };
+}
+
+/**
  * Robust winner resolver that matches across sport.id, sport.title,
  * and canonical prefixes (e.g. 'athletics-100m' <-> 'sport-100m' <-> '100m Sprint').
  */
@@ -376,7 +462,15 @@ export function AppProvider({ children }) {
   // Equipment Inventory & Issue/Return Register State
   const [equipmentList, setEquipmentList] = useState(() => {
     const saved = localStorage.getItem('aahwan_equipment');
-    return saved ? JSON.parse(saved) : [
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.map(normalizeEquipmentItem).filter(Boolean);
+      } catch (e) {
+        console.warn('Failed to parse cached equipment:', e);
+      }
+    }
+    return [
       { id: 'eq-1', name: 'Cricket Tournament Bats', category: 'Cricket', totalQty: 12, condition: 'Good Condition', location: 'Main Sports Store', notes: 'SS English Willow' },
       { id: 'eq-2', name: 'Cricket Leather Balls', category: 'Cricket', totalQty: 30, condition: 'New Pack', location: 'Store Box 2', notes: 'SG Red Leather' },
       { id: 'eq-3', name: 'Match Footballs (Nivia)', category: 'Football', totalQty: 15, condition: 'Good Condition', location: 'Main Sports Store', notes: 'Size 5 Match Balls' },
@@ -384,12 +478,20 @@ export function AppProvider({ children }) {
       { id: 'eq-5', name: 'Badminton Rackets', category: 'Badminton', totalQty: 16, condition: 'Good Condition', location: 'Indoor Store', notes: 'Yonex Graphite' },
       { id: 'eq-6', name: 'Mavis 350 Shuttlecocks', category: 'Badminton', totalQty: 40, condition: 'New Pack', location: 'Indoor Store', notes: 'Nylon Shuttles' },
       { id: 'eq-7', name: 'Chess Wooden Sets', category: 'Indoor Games', totalQty: 8, condition: 'Good Condition', location: 'Indoor Hall', notes: 'Tournament Boards' }
-    ];
+    ].map(normalizeEquipmentItem);
   });
 
   const [equipmentLogs, setEquipmentLogs] = useState(() => {
     const saved = localStorage.getItem('aahwan_equipment_logs');
-    return saved ? JSON.parse(saved) : [
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.map(normalizeEquipmentLog).filter(Boolean);
+      } catch (e) {
+        console.warn('Failed to parse cached equipment logs:', e);
+      }
+    }
+    return [
       {
         id: 'iss-101',
         equipmentId: 'eq-1',
@@ -418,7 +520,7 @@ export function AppProvider({ children }) {
         returnCondition: 'Good Condition',
         notes: 'Girls Football semi-finals'
       }
-    ];
+    ].map(normalizeEquipmentLog);
   });
 
   // View Mode State: 'public' | 'admin-login' | 'admin-dashboard'
@@ -620,14 +722,16 @@ export function AppProvider({ children }) {
           localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(cfg.branchPointsOverride));
         }
         if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
-          setEquipmentList(cfg.equipmentList);
-          localStorage.setItem('aahwan_equipment', JSON.stringify(cfg.equipmentList));
-          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(cfg.equipmentList));
+          const normalized = cfg.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
+          setEquipmentList(normalized);
+          localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
         }
         if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
-          setEquipmentLogs(cfg.equipmentLogs);
-          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(cfg.equipmentLogs));
-          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(cfg.equipmentLogs));
+          const normalized = cfg.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
+          setEquipmentLogs(normalized);
+          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
         }
         if (cfg.teamSquadSizes && typeof cfg.teamSquadSizes === 'object') {
           const mergedSizes = { ...DEFAULT_TEAM_SQUAD_SIZES, ...cfg.teamSquadSizes };
@@ -718,6 +822,60 @@ export function AppProvider({ children }) {
         localStorage.setItem('AWAHAAN_registrations', JSON.stringify(combinedRegs));
       }
 
+      // 3. Fetch equipment inventory directly from Supabase 'equipment' table (with fallback to site_settings)
+      try {
+        const { data: equipRows, error: equipErr } = await supabase
+          .from('equipment')
+          .select('*')
+          .order('name', { ascending: true });
+
+        if (!equipErr && Array.isArray(equipRows) && equipRows.length > 0) {
+          const normalized = equipRows.map(normalizeEquipmentItem).filter(Boolean);
+          setEquipmentList(normalized);
+          localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+        } else if (cloudConfig?.equipmentList && Array.isArray(cloudConfig.equipmentList)) {
+          const normalized = cloudConfig.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
+          setEquipmentList(normalized);
+          localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+        }
+      } catch (e) {
+        if (cloudConfig?.equipmentList && Array.isArray(cloudConfig.equipmentList)) {
+          const normalized = cloudConfig.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
+          setEquipmentList(normalized);
+          localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+        }
+      }
+
+      // 4. Fetch equipment issue/return logs directly from Supabase 'equipment_logs' table (with fallback to site_settings)
+      try {
+        const { data: logRows, error: logErr } = await supabase
+          .from('equipment_logs')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (!logErr && Array.isArray(logRows) && logRows.length > 0) {
+          const normalized = logRows.map(normalizeEquipmentLog).filter(Boolean);
+          setEquipmentLogs(normalized);
+          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+        } else if (cloudConfig?.equipmentLogs && Array.isArray(cloudConfig.equipmentLogs)) {
+          const normalized = cloudConfig.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
+          setEquipmentLogs(normalized);
+          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+        }
+      } catch (e) {
+        if (cloudConfig?.equipmentLogs && Array.isArray(cloudConfig.equipmentLogs)) {
+          const normalized = cloudConfig.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
+          setEquipmentLogs(normalized);
+          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+        }
+      }
+
       setCloudSyncStatus('synced');
       setLastSyncedTime(new Date().toLocaleTimeString());
     } catch (err) {
@@ -804,14 +962,16 @@ export function AppProvider({ children }) {
             localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(cfg.branchPointsOverride));
           }
           if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
-            setEquipmentList(cfg.equipmentList);
-            localStorage.setItem('aahwan_equipment', JSON.stringify(cfg.equipmentList));
-            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(cfg.equipmentList));
+            const normalized = cfg.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
+            setEquipmentList(normalized);
+            localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
           }
           if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
-            setEquipmentLogs(cfg.equipmentLogs);
-            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(cfg.equipmentLogs));
-            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(cfg.equipmentLogs));
+            const normalized = cfg.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
+            setEquipmentLogs(normalized);
+            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
           }
           if (cfg.teamSquadSizes && typeof cfg.teamSquadSizes === 'object') {
             const mergedSizes = { ...DEFAULT_TEAM_SQUAD_SIZES, ...cfg.teamSquadSizes };
@@ -888,6 +1048,64 @@ export function AppProvider({ children }) {
       })
       .subscribe();
 
+    // Subscribe to Realtime Cloud changes on dedicated equipment table
+    const equipmentChannel = supabase
+      .channel('public:equipment')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'equipment' }, (payload) => {
+        if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new) {
+          const item = normalizeEquipmentItem(payload.new);
+          if (item) {
+            setEquipmentList(prev => {
+              const exists = prev.some(e => e.id === item.id);
+              const updated = exists ? prev.map(e => e.id === item.id ? item : e) : [item, ...prev];
+              localStorage.setItem('aahwan_equipment', JSON.stringify(updated));
+              localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          const deletedId = payload.old.id;
+          if (deletedId) {
+            setEquipmentList(prev => {
+              const updated = prev.filter(e => e.id !== deletedId);
+              localStorage.setItem('aahwan_equipment', JSON.stringify(updated));
+              localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        }
+      })
+      .subscribe();
+
+    // Subscribe to Realtime Cloud changes on dedicated equipment_logs table
+    const equipmentLogsChannel = supabase
+      .channel('public:equipment_logs')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'equipment_logs' }, (payload) => {
+        if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new) {
+          const log = normalizeEquipmentLog(payload.new);
+          if (log) {
+            setEquipmentLogs(prev => {
+              const exists = prev.some(l => l.id === log.id);
+              const updated = exists ? prev.map(l => l.id === log.id ? log : l) : [log, ...prev];
+              localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
+              localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        } else if (payload.eventType === 'DELETE' && payload.old) {
+          const deletedId = payload.old.id;
+          if (deletedId) {
+            setEquipmentLogs(prev => {
+              const updated = prev.filter(l => l.id !== deletedId);
+              localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
+              localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updated));
+              return updated;
+            });
+          }
+        }
+      })
+      .subscribe();
+
     // Automatic Sync on Tab Visibility Change / Window Focus (Keeps mobile and tabs always up to date)
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
@@ -900,6 +1118,8 @@ export function AppProvider({ children }) {
     return () => {
       supabase.removeChannel(settingsChannel);
       supabase.removeChannel(registrationsChannel);
+      supabase.removeChannel(equipmentChannel);
+      supabase.removeChannel(equipmentLogsChannel);
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
@@ -1660,17 +1880,21 @@ export function AppProvider({ children }) {
     });
   };
 
-  // Equipment Inventory Handlers (Actively synced with Supabase Database)
+  // Equipment Inventory Handlers (Dual-Engine: Supabase Dedicated Tables + Global Settings Sync)
   const addEquipment = async (item) => {
-    const newItem = {
+    const totalQty = Number(item.totalQty ?? item.total_qty ?? item.qty ?? 1);
+    const newItem = normalizeEquipmentItem({
+      ...item,
       id: item.id || `eq-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
       name: (item.name || '').trim(),
       category: item.category || 'General',
-      totalQty: Number(item.totalQty) || 1,
+      totalQty: totalQty,
+      total_qty: totalQty,
       condition: item.condition || 'Good Condition',
       location: item.location || 'Main Sports Store',
-      notes: item.notes || ''
-    };
+      notes: item.notes || '',
+      created_at: new Date().toISOString()
+    });
 
     let updatedList = [];
     setEquipmentList(prev => {
@@ -1680,6 +1904,26 @@ export function AppProvider({ children }) {
       return updatedList;
     });
 
+    // 1. Direct write to Supabase dedicated 'equipment' table (if created)
+    if (supabase) {
+      try {
+        const { error: tblErr } = await supabase.from('equipment').upsert({
+          id: newItem.id,
+          name: newItem.name,
+          category: newItem.category,
+          total_qty: newItem.totalQty,
+          condition: newItem.condition,
+          location: newItem.location,
+          notes: newItem.notes,
+          created_at: newItem.created_at
+        });
+        if (tblErr) console.warn('Supabase equipment table notice:', tblErr.message);
+      } catch (err) {
+        console.warn('Supabase equipment table exception:', err);
+      }
+    }
+
+    // 2. Dual-save to site_settings config for redundancy & backwards compatibility
     try {
       await saveToCloud({ equipmentList: updatedList });
     } catch (e) {
@@ -1691,20 +1935,47 @@ export function AppProvider({ children }) {
 
   const updateEquipment = async (id, updatedData) => {
     let updatedList = [];
+    let updatedItem = null;
     setEquipmentList(prev => {
-      updatedList = prev.map(e => e.id === id ? { ...e, ...updatedData } : e);
+      updatedList = prev.map(e => {
+        if (e.id === id) {
+          const merged = normalizeEquipmentItem({ ...e, ...updatedData });
+          updatedItem = merged;
+          return merged;
+        }
+        return e;
+      });
       localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
       localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
       return updatedList;
     });
 
+    // 1. Direct write to Supabase dedicated 'equipment' table
+    if (supabase && updatedItem) {
+      try {
+        const { error: tblErr } = await supabase.from('equipment').upsert({
+          id: updatedItem.id,
+          name: updatedItem.name,
+          category: updatedItem.category,
+          total_qty: updatedItem.totalQty,
+          condition: updatedItem.condition,
+          location: updatedItem.location,
+          notes: updatedItem.notes
+        });
+        if (tblErr) console.warn('Supabase equipment table update notice:', tblErr.message);
+      } catch (err) {
+        console.warn('Supabase equipment table update exception:', err);
+      }
+    }
+
+    // 2. Dual-save to site_settings config
     try {
       await saveToCloud({ equipmentList: updatedList });
     } catch (e) {
       console.warn('saveToCloud equipmentList error:', e);
     }
 
-    return { success: true };
+    return { success: true, item: updatedItem };
   };
 
   const deleteEquipment = async (id) => {
@@ -1716,6 +1987,17 @@ export function AppProvider({ children }) {
       return updatedList;
     });
 
+    // 1. Direct delete from Supabase dedicated 'equipment' table
+    if (supabase) {
+      try {
+        const { error: tblErr } = await supabase.from('equipment').delete().eq('id', id);
+        if (tblErr) console.warn('Supabase equipment table delete notice:', tblErr.message);
+      } catch (err) {
+        console.warn('Supabase equipment table delete exception:', err);
+      }
+    }
+
+    // 2. Dual-save to site_settings config
     try {
       await saveToCloud({ equipmentList: updatedList });
     } catch (e) {
@@ -1737,7 +2019,7 @@ export function AppProvider({ children }) {
       hour12: true
     });
 
-    const newLog = {
+    const newLog = normalizeEquipmentLog({
       ...data,
       id: data.id || `iss-${Date.now().toString().slice(-6)}`,
       status: 'issued',
@@ -1745,7 +2027,7 @@ export function AppProvider({ children }) {
       issueDate: data.issueDate || formattedNow,
       issueTimestamp: data.issueTimestamp || now.toISOString(),
       expectedReturn: data.expectedReturn || '',
-      expectedReturnTimestamp: data.expectedReturnTimestamp || '',
+      expectedReturnTimestamp: data.expectedReturnTimestamp || null,
       borrowerPhone: data.borrowerPhone || '',
       purpose: data.purpose || 'Practice Match & Training',
       issueCondition: data.issueCondition || 'Good Condition',
@@ -1753,8 +2035,9 @@ export function AppProvider({ children }) {
       returnDate: null,
       returnTimestamp: null,
       returnCondition: null,
-      returnNotes: null
-    };
+      notes: data.notes || '',
+      created_at: new Date().toISOString()
+    });
 
     let updatedLogs = [];
     setEquipmentLogs(prev => {
@@ -1764,6 +2047,39 @@ export function AppProvider({ children }) {
       return updatedLogs;
     });
 
+    // 1. Direct write to Supabase dedicated 'equipment_logs' table
+    if (supabase) {
+      try {
+        const dbLog = {
+          id: newLog.id,
+          equipment_id: newLog.equipmentId,
+          equipment_name: newLog.equipmentName,
+          category: newLog.category,
+          borrower_name: newLog.borrowerName,
+          roll_no: newLog.rollNo,
+          branch: newLog.branch,
+          borrower_phone: newLog.borrowerPhone,
+          qty: newLog.qty,
+          status: newLog.status,
+          issue_date: newLog.issueDate,
+          issue_timestamp: newLog.issueTimestamp,
+          expected_return: newLog.expectedReturn,
+          expected_return_timestamp: newLog.expectedReturnTimestamp || null,
+          returned_count: 0,
+          return_date: null,
+          return_timestamp: null,
+          return_condition: null,
+          notes: newLog.notes || '',
+          created_at: newLog.created_at
+        };
+        const { error: tblErr } = await supabase.from('equipment_logs').upsert(dbLog);
+        if (tblErr) console.warn('Supabase equipment_logs table notice:', tblErr.message);
+      } catch (err) {
+        console.warn('Supabase equipment_logs table exception:', err);
+      }
+    }
+
+    // 2. Dual-save to site_settings config
     try {
       await saveToCloud({ equipmentLogs: updatedLogs });
     } catch (e) {
@@ -1786,6 +2102,7 @@ export function AppProvider({ children }) {
     }));
 
     let updatedLogs = [];
+    let modifiedLog = null;
     setEquipmentLogs(prev => {
       updatedLogs = prev.map(l => {
         if (l.id === logId) {
@@ -1793,8 +2110,9 @@ export function AppProvider({ children }) {
           const numReturned = Math.min(totalQtyIssued, Number(returnQty) || totalQtyIssued);
           const isPartial = numReturned < totalQtyIssued;
 
+          let updated;
           if (isPartial) {
-            return {
+            updated = normalizeEquipmentLog({
               ...l,
               qty: totalQtyIssued - numReturned,
               returnedCount: (Number(l.returnedCount) || 0) + numReturned,
@@ -1802,18 +2120,20 @@ export function AppProvider({ children }) {
               lastReturnTimestamp: now.toISOString(),
               returnCondition: condition,
               notes: `${l.notes || ''} [Returned ${numReturned} unit(s) on ${formattedNow}]`.trim()
-            };
+            });
           } else {
-            return {
+            updated = normalizeEquipmentLog({
               ...l,
               status: 'returned',
               returnedCount: (Number(l.returnedCount) || 0) + numReturned,
               returnDate: formattedNow,
               returnTimestamp: now.toISOString(),
               returnCondition: condition,
-              returnNotes: notes || ''
-            };
+              notes: notes || l.notes || ''
+            });
           }
+          modifiedLog = updated;
+          return updated;
         }
         return l;
       });
@@ -1822,13 +2142,45 @@ export function AppProvider({ children }) {
       return updatedLogs;
     });
 
+    // 1. Direct write to Supabase dedicated 'equipment_logs' table
+    if (supabase && modifiedLog) {
+      try {
+        const dbLog = {
+          id: modifiedLog.id,
+          equipment_id: modifiedLog.equipmentId,
+          equipment_name: modifiedLog.equipmentName,
+          category: modifiedLog.category,
+          borrower_name: modifiedLog.borrowerName,
+          roll_no: modifiedLog.rollNo,
+          branch: modifiedLog.branch,
+          borrower_phone: modifiedLog.borrowerPhone,
+          qty: modifiedLog.qty,
+          status: modifiedLog.status,
+          issue_date: modifiedLog.issueDate,
+          issue_timestamp: modifiedLog.issueTimestamp,
+          expected_return: modifiedLog.expectedReturn,
+          expected_return_timestamp: modifiedLog.expectedReturnTimestamp || null,
+          returned_count: modifiedLog.returnedCount,
+          return_date: modifiedLog.returnDate,
+          return_timestamp: modifiedLog.returnTimestamp,
+          return_condition: modifiedLog.returnCondition,
+          notes: modifiedLog.notes || ''
+        };
+        const { error: tblErr } = await supabase.from('equipment_logs').upsert(dbLog);
+        if (tblErr) console.warn('Supabase equipment_logs return notice:', tblErr.message);
+      } catch (err) {
+        console.warn('Supabase equipment_logs return exception:', err);
+      }
+    }
+
+    // 2. Dual-save to site_settings config
     try {
       await saveToCloud({ equipmentLogs: updatedLogs });
     } catch (e) {
       console.warn('saveToCloud equipmentLogs error:', e);
     }
 
-    return { success: true };
+    return { success: true, log: modifiedLog };
   };
 
   const deleteEquipmentLog = async (logId) => {
@@ -1840,6 +2192,17 @@ export function AppProvider({ children }) {
       return updatedLogs;
     });
 
+    // 1. Direct delete from Supabase dedicated 'equipment_logs' table
+    if (supabase) {
+      try {
+        const { error: tblErr } = await supabase.from('equipment_logs').delete().eq('id', logId);
+        if (tblErr) console.warn('Supabase equipment_logs delete notice:', tblErr.message);
+      } catch (err) {
+        console.warn('Supabase equipment_logs delete exception:', err);
+      }
+    }
+
+    // 2. Dual-save to site_settings config
     try {
       await saveToCloud({ equipmentLogs: updatedLogs });
     } catch (e) {

@@ -257,9 +257,9 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
     if (!targetEquip) return;
 
     const issuedUnitsForThis = activeIssuedLogs
-      .filter(l => l.equipmentId === targetEquip.id)
+      .filter(l => (l.equipmentId || l.equipment_id) === targetEquip.id)
       .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-    const availableForThis = Math.max(0, targetEquip.totalQty - issuedUnitsForThis);
+    const availableForThis = Math.max(0, (Number(targetEquip.totalQty ?? targetEquip.total_qty) || 0) - issuedUnitsForThis);
 
     if (Number(issueData.qty) > availableForThis) {
       alert(`Cannot issue ${issueData.qty} units. Only ${availableForThis} available in store stock!`);
@@ -1294,9 +1294,9 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                 >
                   {filteredModalEquipment.map(item => {
                     const issuedForThis = activeIssuedLogs
-                      .filter(l => l.equipmentId === item.id)
+                      .filter(l => (l.equipmentId || l.equipment_id) === item.id)
                       .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-                    const avail = Math.max(0, item.totalQty - issuedForThis);
+                    const avail = Math.max(0, (Number(item.totalQty ?? item.total_qty) || 0) - issuedForThis);
                     return (
                       <option key={item.id} value={item.id} disabled={avail === 0}>
                         [{item.category}] {item.name} — ({avail} units available)

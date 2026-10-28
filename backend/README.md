@@ -28,11 +28,27 @@ This script creates:
 
 ---
 
-### 2. Create the Storage Bucket (for Image Uploads)
+### 2. Run Equipment & Issue/Return Setup (Stock Inventory)
+
+If you are using the Equipment Stock Inventory & Issue/Return log features:
+1. In Supabase **SQL Editor**, open [`backend/equipment_setup.sql`](file:///d:/website/awahaan/aahwan/backend/equipment_setup.sql).
+2. Copy and paste the script into the query box.
+3. Click **Run**.
+
+This script sets up:
+- `public.equipment` table with `total_qty`, `condition`, `location`, `notes`
+- `public.equipment_logs` table with `borrower_name`, `roll_no`, `issue_date`, `return_date`, `status`
+- Row Level Security (RLS) policies allowing frontend reads and writes
+- Realtime publication `ALTER PUBLICATION supabase_realtime ADD TABLE public.equipment, public.equipment_logs;`
+- Initial seed data matching the sports festival inventory.
+
+---
+
+### 3. Create the Storage Bucket (for Image Uploads)
 
 1. In Supabase Dashboard, click **Storage** in the left sidebar.
 2. Click **New Bucket**.
-3. Set **Bucket Name**: `AWAHAAN`
+3. Set **Bucket Name:** `AWAHAAN`
 4. Toggle **Public Bucket** to **ON** (so images are viewable by everyone).
 5. Click **Save**.
 
