@@ -15,9 +15,55 @@ function sanitizePhotoUrl(url, fallback = '/assets/images/hero_sports_banner_178
 function getDeletedRegIds() {
   try {
     const saved = localStorage.getItem('aahwan_deleted_reg_ids');
-    return saved ? new Set(JSON.parse(saved)) : new Set();
+    return saved ? new Set(JSON.parse(saved).map(String)) : new Set();
   } catch (e) {
     return new Set();
+  }
+}
+
+function getDeletedLogIds() {
+  try {
+    const saved = localStorage.getItem('aahwan_deleted_log_ids') || localStorage.getItem('AWAHAAN_deleted_log_ids');
+    return saved ? new Set(JSON.parse(saved).map(String)) : new Set();
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function addDeletedLogId(id) {
+  if (!id) return;
+  try {
+    const strId = String(id).trim();
+    const set = getDeletedLogIds();
+    set.add(strId);
+    const arr = [...set];
+    localStorage.setItem('aahwan_deleted_log_ids', JSON.stringify(arr));
+    localStorage.setItem('AWAHAAN_deleted_log_ids', JSON.stringify(arr));
+  } catch (e) {
+    console.warn('Failed to record deleted log id:', e);
+  }
+}
+
+function getDeletedEquipIds() {
+  try {
+    const saved = localStorage.getItem('aahwan_deleted_equip_ids') || localStorage.getItem('AWAHAAN_deleted_equip_ids');
+    return saved ? new Set(JSON.parse(saved).map(String)) : new Set();
+  } catch (e) {
+    return new Set();
+  }
+}
+
+function addDeletedEquipId(id) {
+  if (!id) return;
+  try {
+    const strId = String(id).trim();
+    const set = getDeletedEquipIds();
+    set.add(strId);
+    const arr = [...set];
+    localStorage.setItem('aahwan_deleted_equip_ids', JSON.stringify(arr));
+    localStorage.setItem('AWAHAAN_deleted_equip_ids', JSON.stringify(arr));
+  } catch (e) {
+    console.warn('Failed to record deleted equip id:', e);
   }
 }
 
@@ -79,12 +125,31 @@ export function normalizeEquipmentItem(item) {
   const rawQty = item.totalQty !== undefined ? item.totalQty : (item.total_qty !== undefined ? item.total_qty : item.qty);
   const numQty = Number(rawQty);
   const totalQty = isNaN(numQty) ? 1 : Math.max(0, numQty);
+
+  // New stock vs Old stock breakdown & classification
+  const rawStockType = item.stockType || item.stock_type;
+  const stockType = rawStockType 
+    ? (String(rawStockType).toLowerCase().includes('new') ? 'new' : 'old')
+    : ((item.condition && item.condition.toLowerCase().includes('new')) ? 'new' : 'old');
+
+  const rawNew = item.newQty !== undefined ? Number(item.newQty) : (item.new_qty !== undefined ? Number(item.new_qty) : (stockType === 'new' ? totalQty : 0));
+  const rawOld = item.oldQty !== undefined ? Number(item.oldQty) : (item.old_qty !== undefined ? Number(item.old_qty) : (stockType === 'old' ? totalQty : Math.max(0, totalQty - (isNaN(rawNew) ? 0 : rawNew))));
+
+  const newQty = isNaN(rawNew) ? 0 : Math.max(0, rawNew);
+  const oldQty = isNaN(rawOld) ? 0 : Math.max(0, rawOld);
+
   return {
     id: String(item.id || `eq-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`),
     name: String(item.name || '').trim(),
     category: String(item.category || 'General').trim(),
     totalQty: totalQty,
     total_qty: totalQty,
+    newQty: newQty,
+    new_qty: newQty,
+    oldQty: oldQty,
+    old_qty: oldQty,
+    stockType: stockType,
+    stock_type: stockType,
     condition: String(item.condition || 'Good Condition'),
     location: String(item.location || 'Main Sports Store'),
     notes: String(item.notes || ''),
@@ -115,6 +180,10 @@ export function normalizeEquipmentLog(log) {
   const returnNotes = log.returnNotes ?? log.return_notes ?? null;
   const issueCondition = log.issueCondition ?? log.issue_condition ?? 'Good Condition';
   const purpose = log.purpose ?? 'Practice Match & Training';
+  const rawStockType = log.stockType ?? log.stock_type;
+  const stockType = rawStockType 
+    ? (String(rawStockType).toLowerCase().includes('new') ? 'new' : 'old')
+    : ((issueCondition && issueCondition.toLowerCase().includes('new')) ? 'new' : 'old');
 
   return {
     id: String(log.id || `iss-${Date.now().toString().slice(-6)}`),
@@ -131,6 +200,8 @@ export function normalizeEquipmentLog(log) {
     borrowerPhone,
     borrower_phone: borrowerPhone,
     qty,
+    stockType,
+    stock_type: stockType,
     status: String(log.status || 'issued'),
     issueDate,
     issue_date: issueDate,
@@ -354,13 +425,13 @@ export const DEFAULT_TEAM_SQUAD_SIZES = {
 };
 
 export const DEFAULT_EQUIPMENT_ITEMS = [
-  { id: 'eq-1', name: 'Cricket Tournament Bats', category: 'Cricket', totalQty: 12, total_qty: 12, condition: 'Good Condition', location: 'Main Sports Store', notes: 'SS English Willow' },
-  { id: 'eq-2', name: 'Cricket Leather Balls', category: 'Cricket', totalQty: 30, total_qty: 30, condition: 'New Pack', location: 'Store Box 2', notes: 'SG Red Leather' },
-  { id: 'eq-3', name: 'Match Footballs (Nivia)', category: 'Football', totalQty: 15, total_qty: 15, condition: 'Good Condition', location: 'Main Sports Store', notes: 'Size 5 Match Balls' },
-  { id: 'eq-4', name: 'Volleyballs (Mikasa)', category: 'Volleyball', totalQty: 10, total_qty: 10, condition: 'Good Condition', location: 'Store Box 1', notes: 'Tournament Approved' },
-  { id: 'eq-5', name: 'Badminton Rackets', category: 'Badminton', totalQty: 16, total_qty: 16, condition: 'Good Condition', location: 'Indoor Store', notes: 'Yonex Graphite' },
-  { id: 'eq-6', name: 'Mavis 350 Shuttlecocks', category: 'Badminton', totalQty: 40, total_qty: 40, condition: 'New Pack', location: 'Indoor Store', notes: 'Nylon Shuttles' },
-  { id: 'eq-7', name: 'Chess Wooden Sets', category: 'Indoor Games', totalQty: 8, total_qty: 8, condition: 'Good Condition', location: 'Indoor Hall', notes: 'Tournament Boards' }
+  { id: 'eq-1', name: 'Cricket Tournament Bats', category: 'Cricket', totalQty: 12, total_qty: 12, newQty: 4, oldQty: 8, stockType: 'old', condition: 'Good Condition', location: 'Main Sports Store', notes: 'SS English Willow' },
+  { id: 'eq-2', name: 'Cricket Leather Balls', category: 'Cricket', totalQty: 30, total_qty: 30, newQty: 30, oldQty: 0, stockType: 'new', condition: 'New Pack', location: 'Store Box 2', notes: 'SG Red Leather' },
+  { id: 'eq-3', name: 'Match Footballs (Nivia)', category: 'Football', totalQty: 15, total_qty: 15, newQty: 10, oldQty: 5, stockType: 'new', condition: 'Good Condition', location: 'Main Sports Store', notes: 'Size 5 Match Balls' },
+  { id: 'eq-4', name: 'Volleyballs (Mikasa)', category: 'Volleyball', totalQty: 10, total_qty: 10, newQty: 2, oldQty: 8, stockType: 'old', condition: 'Good Condition', location: 'Store Box 1', notes: 'Tournament Approved' },
+  { id: 'eq-5', name: 'Badminton Rackets', category: 'Badminton', totalQty: 16, total_qty: 16, newQty: 6, oldQty: 10, stockType: 'old', condition: 'Good Condition', location: 'Indoor Store', notes: 'Yonex Graphite' },
+  { id: 'eq-6', name: 'Mavis 350 Shuttlecocks', category: 'Badminton', totalQty: 40, total_qty: 40, newQty: 40, oldQty: 0, stockType: 'new', condition: 'New Pack', location: 'Indoor Store', notes: 'Nylon Shuttles' },
+  { id: 'eq-7', name: 'Chess Wooden Sets', category: 'Indoor Games', totalQty: 8, total_qty: 8, newQty: 2, oldQty: 6, stockType: 'old', condition: 'Good Condition', location: 'Indoor Hall', notes: 'Tournament Boards' }
 ];
 
 export const DEFAULT_EQUIPMENT_LOGS = [
@@ -638,35 +709,35 @@ export function AppProvider({ children }) {
 
   // Equipment Inventory & Issue/Return Register State
   const [equipmentList, setEquipmentList] = useState(() => {
-    const saved = localStorage.getItem('aahwan_equipment');
-    if (saved) {
+    const deletedEquipIds = getDeletedEquipIds();
+    const saved = localStorage.getItem('aahwan_equipment') || localStorage.getItem('AWAHAAN_equipment');
+    if (saved !== null) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const norm = parsed.map(normalizeEquipmentItem).filter(Boolean);
-          if (norm.length > 0) return norm;
+        if (Array.isArray(parsed)) {
+          return parsed.map(normalizeEquipmentItem).filter(e => e && !deletedEquipIds.has(String(e.id)));
         }
       } catch (e) {
         console.warn('Failed to parse cached equipment:', e);
       }
     }
-    return DEFAULT_EQUIPMENT_ITEMS.map(normalizeEquipmentItem);
+    return DEFAULT_EQUIPMENT_ITEMS.map(normalizeEquipmentItem).filter(e => !deletedEquipIds.has(String(e.id)));
   });
 
   const [equipmentLogs, setEquipmentLogs] = useState(() => {
-    const saved = localStorage.getItem('aahwan_equipment_logs');
-    if (saved) {
+    const deletedLogIds = getDeletedLogIds();
+    const saved = localStorage.getItem('aahwan_equipment_logs') || localStorage.getItem('AWAHAAN_equipment_logs');
+    if (saved !== null) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const norm = parsed.map(normalizeEquipmentLog).filter(Boolean);
-          if (norm.length > 0) return norm;
+        if (Array.isArray(parsed)) {
+          return parsed.map(normalizeEquipmentLog).filter(l => l && !deletedLogIds.has(String(l.id)));
         }
       } catch (e) {
         console.warn('Failed to parse cached equipment logs:', e);
       }
     }
-    return DEFAULT_EQUIPMENT_LOGS.map(normalizeEquipmentLog);
+    return DEFAULT_EQUIPMENT_LOGS.map(normalizeEquipmentLog).filter(l => !deletedLogIds.has(String(l.id)));
   });
 
   // View Mode State: 'public' | 'admin-login' | 'admin-dashboard'
@@ -761,10 +832,18 @@ export function AppProvider({ children }) {
         branchPointsOverride: customOverrides.branchPointsOverride !== undefined ? customOverrides.branchPointsOverride : branchPointsOverride,
         equipmentList: customOverrides.equipmentList !== undefined 
           ? customOverrides.equipmentList 
-          : (equipmentList && equipmentList.length > 0 ? equipmentList : (existingConfig.equipmentList && existingConfig.equipmentList.length > 0 ? existingConfig.equipmentList : DEFAULT_EQUIPMENT_ITEMS.map(normalizeEquipmentItem))),
+          : (Array.isArray(equipmentList) 
+              ? equipmentList.filter(e => !getDeletedEquipIds().has(String(e.id))) 
+              : (Array.isArray(existingConfig.equipmentList) 
+                  ? existingConfig.equipmentList.filter(e => !getDeletedEquipIds().has(String(e.id))) 
+                  : [])),
         equipmentLogs: customOverrides.equipmentLogs !== undefined 
           ? customOverrides.equipmentLogs 
-          : (equipmentLogs && equipmentLogs.length > 0 ? equipmentLogs : (existingConfig.equipmentLogs && existingConfig.equipmentLogs.length > 0 ? existingConfig.equipmentLogs : DEFAULT_EQUIPMENT_LOGS.map(normalizeEquipmentLog))),
+          : (Array.isArray(equipmentLogs) 
+              ? equipmentLogs.filter(l => !getDeletedLogIds().has(String(l.id))) 
+              : (Array.isArray(existingConfig.equipmentLogs) 
+                  ? existingConfig.equipmentLogs.filter(l => !getDeletedLogIds().has(String(l.id))) 
+                  : [])),
         registrations: customOverrides.registrations !== undefined ? customOverrides.registrations : registrations,
         teamSquadSizes: customOverrides.teamSquadSizes !== undefined ? customOverrides.teamSquadSizes : teamSquadSizes
       };
@@ -875,21 +954,23 @@ export function AppProvider({ children }) {
           localStorage.setItem('aahwan_branch_points', JSON.stringify(cfg.branchPointsOverride));
           localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(cfg.branchPointsOverride));
         }
-        if (cfg.equipmentList && Array.isArray(cfg.equipmentList) && cfg.equipmentList.length > 0) {
-          const normalized = cfg.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
-          if (normalized.length > 0) {
-            setEquipmentList(normalized);
-            localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
-            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
-          }
+        if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
+          const deletedEquipIds = getDeletedEquipIds();
+          const normalized = cfg.equipmentList
+            .map(normalizeEquipmentItem)
+            .filter(e => e && !deletedEquipIds.has(String(e.id)));
+          setEquipmentList(normalized);
+          localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
         }
-        if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs) && cfg.equipmentLogs.length > 0) {
-          const normalized = cfg.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
-          if (normalized.length > 0) {
-            setEquipmentLogs(normalized);
-            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
-            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
-          }
+        if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
+          const deletedLogIds = getDeletedLogIds();
+          const normalized = cfg.equipmentLogs
+            .map(normalizeEquipmentLog)
+            .filter(l => l && !deletedLogIds.has(String(l.id)));
+          setEquipmentLogs(normalized);
+          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
         }
         if (cfg.teamSquadSizes && typeof cfg.teamSquadSizes === 'object') {
           const mergedSizes = { ...DEFAULT_TEAM_SQUAD_SIZES, ...cfg.teamSquadSizes };
@@ -982,65 +1063,71 @@ export function AppProvider({ children }) {
 
       // 3. Fetch equipment inventory directly from Supabase 'equipment' table (with fallback to site_settings)
       try {
+        const deletedEquipIds = getDeletedEquipIds();
         const { data: equipRows, error: equipErr } = await supabase
           .from('equipment')
           .select('*')
           .order('name', { ascending: true });
 
-        if (!equipErr && Array.isArray(equipRows) && equipRows.length > 0) {
-          const normalized = equipRows.map(normalizeEquipmentItem).filter(Boolean);
+        if (!equipErr && Array.isArray(equipRows)) {
+          const normalized = equipRows
+            .map(normalizeEquipmentItem)
+            .filter(e => e && !deletedEquipIds.has(String(e.id)));
           setEquipmentList(normalized);
           localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
           localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
-        } else if (cloudConfig?.equipmentList && Array.isArray(cloudConfig.equipmentList) && cloudConfig.equipmentList.length > 0) {
-          const normalized = cloudConfig.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
-          if (normalized.length > 0) {
-            setEquipmentList(normalized);
-            localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
-            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
-          }
+        } else if (cloudConfig?.equipmentList && Array.isArray(cloudConfig.equipmentList)) {
+          const normalized = cloudConfig.equipmentList
+            .map(normalizeEquipmentItem)
+            .filter(e => e && !deletedEquipIds.has(String(e.id)));
+          setEquipmentList(normalized);
+          localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
         }
       } catch (e) {
-        if (cloudConfig?.equipmentList && Array.isArray(cloudConfig.equipmentList) && cloudConfig.equipmentList.length > 0) {
-          const normalized = cloudConfig.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
-          if (normalized.length > 0) {
-            setEquipmentList(normalized);
-            localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
-            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
-          }
+        const deletedEquipIds = getDeletedEquipIds();
+        if (cloudConfig?.equipmentList && Array.isArray(cloudConfig.equipmentList)) {
+          const normalized = cloudConfig.equipmentList
+            .map(normalizeEquipmentItem)
+            .filter(e => e && !deletedEquipIds.has(String(e.id)));
+          setEquipmentList(normalized);
+          localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
         }
       }
 
       // 4. Fetch equipment issue/return logs directly from Supabase 'equipment_logs' table (with fallback to site_settings)
       try {
+        const deletedLogIds = getDeletedLogIds();
         const { data: logRows, error: logErr } = await supabase
           .from('equipment_logs')
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!logErr && Array.isArray(logRows) && logRows.length > 0) {
-          const normalized = logRows.map(normalizeEquipmentLog).filter(Boolean);
-          if (normalized.length > 0) {
-            setEquipmentLogs(normalized);
-            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
-            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
-          }
-        } else if (cloudConfig?.equipmentLogs && Array.isArray(cloudConfig.equipmentLogs) && cloudConfig.equipmentLogs.length > 0) {
-          const normalized = cloudConfig.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
-          if (normalized.length > 0) {
-            setEquipmentLogs(normalized);
-            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
-            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
-          }
+        if (!logErr && Array.isArray(logRows)) {
+          const normalized = logRows
+            .map(normalizeEquipmentLog)
+            .filter(l => l && !deletedLogIds.has(String(l.id)));
+          setEquipmentLogs(normalized);
+          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+        } else if (cloudConfig?.equipmentLogs && Array.isArray(cloudConfig.equipmentLogs)) {
+          const normalized = cloudConfig.equipmentLogs
+            .map(normalizeEquipmentLog)
+            .filter(l => l && !deletedLogIds.has(String(l.id)));
+          setEquipmentLogs(normalized);
+          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
         }
       } catch (e) {
-        if (cloudConfig?.equipmentLogs && Array.isArray(cloudConfig.equipmentLogs) && cloudConfig.equipmentLogs.length > 0) {
-          const normalized = cloudConfig.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
-          if (normalized.length > 0) {
-            setEquipmentLogs(normalized);
-            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
-            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
-          }
+        const deletedLogIds = getDeletedLogIds();
+        if (cloudConfig?.equipmentLogs && Array.isArray(cloudConfig.equipmentLogs)) {
+          const normalized = cloudConfig.equipmentLogs
+            .map(normalizeEquipmentLog)
+            .filter(l => l && !deletedLogIds.has(String(l.id)));
+          setEquipmentLogs(normalized);
+          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
         }
       }
 
@@ -1146,21 +1233,23 @@ export function AppProvider({ children }) {
             localStorage.setItem('aahwan_branch_points', JSON.stringify(cfg.branchPointsOverride));
             localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(cfg.branchPointsOverride));
           }
-          if (cfg.equipmentList && Array.isArray(cfg.equipmentList) && cfg.equipmentList.length > 0) {
-            const normalized = cfg.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
-            if (normalized.length > 0) {
-              setEquipmentList(normalized);
-              localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
-              localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
-            }
+          if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
+            const deletedEquipIds = getDeletedEquipIds();
+            const normalized = cfg.equipmentList
+              .map(normalizeEquipmentItem)
+              .filter(e => e && !deletedEquipIds.has(String(e.id)));
+            setEquipmentList(normalized);
+            localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
           }
-          if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs) && cfg.equipmentLogs.length > 0) {
-            const normalized = cfg.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
-            if (normalized.length > 0) {
-              setEquipmentLogs(normalized);
-              localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
-              localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
-            }
+          if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
+            const deletedLogIds = getDeletedLogIds();
+            const normalized = cfg.equipmentLogs
+              .map(normalizeEquipmentLog)
+              .filter(l => l && !deletedLogIds.has(String(l.id)));
+            setEquipmentLogs(normalized);
+            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
           }
           if (cfg.teamSquadSizes && typeof cfg.teamSquadSizes === 'object') {
             const mergedSizes = { ...DEFAULT_TEAM_SQUAD_SIZES, ...cfg.teamSquadSizes };
@@ -1270,22 +1359,28 @@ export function AppProvider({ children }) {
     const equipmentLogsChannel = supabase
       .channel('public:equipment_logs')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'equipment_logs' }, (payload) => {
+        const deletedLogIds = getDeletedLogIds();
         if ((payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') && payload.new) {
+          if (deletedLogIds.has(String(payload.new.id))) {
+            return; // Ignore resurrection of deleted log
+          }
           const log = normalizeEquipmentLog(payload.new);
-          if (log) {
+          if (log && !deletedLogIds.has(String(log.id))) {
             setEquipmentLogs(prev => {
-              const exists = prev.some(l => l.id === log.id);
-              const updated = exists ? prev.map(l => l.id === log.id ? log : l) : [log, ...prev];
+              if (deletedLogIds.has(String(log.id))) return prev;
+              const exists = prev.some(l => String(l.id) === String(log.id));
+              const updated = exists ? prev.map(l => String(l.id) === String(log.id) ? log : l) : [log, ...prev];
               localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
               localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updated));
               return updated;
             });
           }
         } else if (payload.eventType === 'DELETE' && payload.old) {
-          const deletedId = payload.old.id;
+          const deletedId = payload.old.id ? String(payload.old.id).trim() : null;
           if (deletedId) {
+            addDeletedLogId(deletedId);
             setEquipmentLogs(prev => {
-              const updated = prev.filter(l => l.id !== deletedId);
+              const updated = prev.filter(l => String(l.id).trim() !== deletedId);
               localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updated));
               localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updated));
               return updated;
@@ -2262,23 +2357,32 @@ export function AppProvider({ children }) {
   };
 
   const deleteEquipment = async (id) => {
-    const updatedList = equipmentList.filter(e => e.id !== id);
+    if (!id) return { success: false, error: 'No equipment ID provided' };
+    const strId = String(id).trim();
 
-    setEquipmentList(updatedList);
-    localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
-    localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
+    // 1. Record tombstone immediately
+    addDeletedEquipId(strId);
 
-    // 1. Direct delete from Supabase dedicated 'equipment' table
+    // 2. Functional update to local state & immediate localStorage sync
+    let updatedList = [];
+    setEquipmentList(prev => {
+      updatedList = prev.filter(e => String(e.id).trim() !== strId);
+      localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
+      localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
+      return updatedList;
+    });
+
+    // 3. Direct delete from Supabase dedicated 'equipment' table
     if (supabase) {
       try {
-        const { error: tblErr } = await supabase.from('equipment').delete().eq('id', id);
+        const { error: tblErr } = await supabase.from('equipment').delete().eq('id', strId);
         if (tblErr) console.warn('Supabase equipment table delete notice:', tblErr.message);
       } catch (err) {
         console.warn('Supabase equipment table delete exception:', err);
       }
     }
 
-    // 2. Dual-save to site_settings config
+    // 4. Dual-save to site_settings config
     try {
       await saveToCloud({ equipmentList: updatedList });
     } catch (e) {
@@ -2336,6 +2440,8 @@ export function AppProvider({ children }) {
       id: data.id || `iss-${Date.now().toString().slice(-6)}`,
       status: 'issued',
       qty: Number(data.qty) || 1,
+      stockType: data.stockType || data.stock_type || 'old',
+      stock_type: data.stockType || data.stock_type || 'old',
       issueDate: data.issueDate || formattedNow,
       issueTimestamp: data.issueTimestamp || now.toISOString(),
       expectedReturn: data.expectedReturn || '',
@@ -2370,6 +2476,7 @@ export function AppProvider({ children }) {
           branch: newLog.branch || 'General',
           borrower_phone: newLog.borrowerPhone || newLog.borrower_phone || '',
           qty: Number(newLog.qty) || 1,
+          stock_type: newLog.stockType || newLog.stock_type || 'old',
           status: newLog.status || 'issued',
           issue_date: newLog.issueDate || newLog.issue_date || '',
           issue_timestamp: newLog.issueTimestamp || newLog.issue_timestamp || null,
@@ -2489,23 +2596,32 @@ export function AppProvider({ children }) {
   };
 
   const deleteEquipmentLog = async (logId) => {
-    const updatedLogs = equipmentLogs.filter(l => l.id !== logId);
+    if (!logId) return { success: false, error: 'No Log ID provided' };
+    const strLogId = String(logId).trim();
 
-    setEquipmentLogs(updatedLogs);
-    localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
-    localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
+    // 1. Immediately record in deleted tombstones set to prevent resurrection on sync/focus
+    addDeletedLogId(strLogId);
 
-    // 1. Direct delete from Supabase dedicated 'equipment_logs' table
+    // 2. Functional update to local state & immediate localStorage sync
+    let updatedLogs = [];
+    setEquipmentLogs(prev => {
+      updatedLogs = prev.filter(l => String(l.id).trim() !== strLogId);
+      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
+      localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
+      return updatedLogs;
+    });
+
+    // 3. Direct delete from dedicated Supabase 'equipment_logs' table
     if (supabase) {
       try {
-        const { error: tblErr } = await supabase.from('equipment_logs').delete().eq('id', logId);
+        const { error: tblErr } = await supabase.from('equipment_logs').delete().eq('id', strLogId);
         if (tblErr) console.warn('Supabase equipment_logs delete notice:', tblErr.message);
       } catch (err) {
         console.warn('Supabase equipment_logs delete exception:', err);
       }
     }
 
-    // 2. Dual-save to site_settings config
+    // 4. Dual-save to site_settings config
     try {
       await saveToCloud({ equipmentLogs: updatedLogs });
     } catch (e) {

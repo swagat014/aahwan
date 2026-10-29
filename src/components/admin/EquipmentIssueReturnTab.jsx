@@ -137,6 +137,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
   const [modalSportCategory, setModalSportCategory] = useState('all');
   const [isSubmittingIssue, setIsSubmittingIssue] = useState(false);
   const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
+  const [isDeletingLogId, setIsDeletingLogId] = useState(null);
   
   // Issue Form State
   const [issueData, setIssueData] = useState({
@@ -146,6 +147,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
     branch: 'Computer Science & Engg (CSE)',
     borrowerPhone: '',
     qty: 1,
+    stockType: 'old',
     issueDateLocal: getNowDateTimeLocal(0),
     expectedReturnLocal: getNowDateTimeLocal(4), // default 4 hours loan
     purpose: 'Practice Match & Training',
@@ -286,6 +288,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
         branch: issueData.branch,
         borrowerPhone: issueData.borrowerPhone,
         qty: Number(issueData.qty),
+        stockType: issueData.stockType || 'old',
         issueDate: formattedIssueDate,
         issueTimestamp: issueData.issueDateLocal ? new Date(issueData.issueDateLocal).toISOString() : new Date().toISOString(),
         expectedReturn: formattedExpectedReturn,
@@ -294,7 +297,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
         issueCondition: issueData.issueCondition,
         notes: issueData.notes
       });
-      showToast(`✓ Successfully issued ${issueData.qty}x ${targetEquip.name} to ${issueData.borrowerName}. Synced to database.`);
+      showToast(`✓ Successfully issued ${issueData.qty}x ${targetEquip.name} (${issueData.stockType === 'new' ? '✨ New Stock' : '📦 Old Stock'}) to ${issueData.borrowerName}. Synced to database.`);
       setIssueData({
         equipmentId: '',
         borrowerName: '',
@@ -302,6 +305,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
         branch: 'Computer Science & Engg (CSE)',
         borrowerPhone: '',
         qty: 1,
+        stockType: 'old',
         issueDateLocal: getNowDateTimeLocal(0),
         expectedReturnLocal: getNowDateTimeLocal(4),
         purpose: 'Practice Match & Training',
@@ -349,15 +353,23 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
 
   // Delete Log
   const handleDeleteLog = async (logId) => {
-    if (window.confirm(`Delete record #${logId} permanently from the register?`)) {
+    if (!logId) return;
+    const confirmed = window.confirm(`Permanently delete loan record #${logId} from the register?`);
+    if (!confirmed) return;
+
+    setIsDeletingLogId(logId);
+    try {
       if (deleteEquipmentLog) {
-        try {
-          await deleteEquipmentLog(logId);
-          showToast(`Record #${logId} removed and synced to database.`);
-        } catch (err) {
-          showToast(err.message || 'Failed to delete record', 'error');
+        await deleteEquipmentLog(logId);
+        if (dossierLog && String(dossierLog.id) === String(logId)) {
+          setDossierLog(null);
         }
+        showToast(`✓ Record #${logId} permanently removed and synced to database.`);
       }
+    } catch (err) {
+      showToast(err.message || 'Failed to delete record', 'error');
+    } finally {
+      setIsDeletingLogId(null);
     }
   };
 
@@ -366,6 +378,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
     const headers = [
       'Log ID',
       'Equipment Item',
+      'Stock Origin',
       'Category',
       'Borrower Student',
       'Roll Number',
@@ -392,6 +405,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
       return [
         log.id || '',
         `"${(log.equipmentName || '').replace(/"/g, '""')}"`,
+        `"${log.stockType === 'new' ? 'New Stock' : 'Old Stock'}"`,
         `"${(log.category || '').replace(/"/g, '""')}"`,
         `"${(log.borrowerName || '').replace(/"/g, '""')}"`,
         `"${(log.rollNo || '').replace(/"/g, '""')}"`,
@@ -532,9 +546,12 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
           <button
             onClick={() => {
               if (equipmentList.length > 0) {
+                const first = equipmentList[0];
+                const defSt = first.stockType === 'new' || (first.newQty > 0 && first.oldQty === 0) ? 'new' : 'old';
                 setIssueData(prev => ({ 
                   ...prev, 
-                  equipmentId: equipmentList[0].id,
+                  equipmentId: first.id,
+                  stockType: defSt,
                   issueDateLocal: getNowDateTimeLocal(0),
                   expectedReturnLocal: getNowDateTimeLocal(4)
                 }));
@@ -819,7 +836,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                           <span className="font-black text-slate-900 block text-xs">
                             {log.equipmentName}
                           </span>
-                          <div className="flex items-center gap-1.5 mt-0.5">
+                          <div className="flex items-center gap-1 mt-0.5 flex-wrap">
                             <span className={`px-1.5 py-0.2 rounded text-[0.62rem] font-bold ${
                               log.status === 'issued' 
                                 ? 'bg-amber-100 text-amber-800 border border-amber-200' 
@@ -827,6 +844,15 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                             }`}>
                               {log.qty} {log.status === 'issued' ? 'unit(s) out' : 'unit(s)'}
                             </span>
+                            {log.stockType === 'new' ? (
+                              <span className="text-[0.58rem] font-bold text-cyan-800 bg-cyan-50 px-1 py-0.2 rounded border border-cyan-200">
+                                ✨ New Stock
+                              </span>
+                            ) : (
+                              <span className="text-[0.58rem] font-bold text-slate-600 bg-slate-100 px-1 py-0.2 rounded border border-slate-200">
+                                📦 Old Stock
+                              </span>
+                            )}
                             {hasPartialReturn && (
                               <span className="text-[0.6rem] font-bold text-cyan-700 bg-cyan-50 px-1.5 py-0.2 rounded border border-cyan-200">
                                 {log.returnedCount} returned
@@ -996,11 +1022,16 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                           </button>
 
                           <button
+                            disabled={isDeletingLogId === log.id}
                             onClick={() => handleDeleteLog(log.id)}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                            title="Delete log record"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer disabled:opacity-50"
+                            title="Delete log record permanently"
                           >
-                            <Trash2 size={14} />
+                            {isDeletingLogId === log.id ? (
+                              <Loader2 size={14} className="animate-spin text-rose-600" />
+                            ) : (
+                              <Trash2 size={14} />
+                            )}
                           </button>
                         </div>
                       </td>
@@ -1052,6 +1083,15 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                         {log.category && (
                           <span className="text-[0.62rem] px-2 py-0.2 rounded-full bg-blue-50 text-blue-700 font-bold border border-blue-200">
                             {log.category}
+                          </span>
+                        )}
+                        {log.stockType === 'new' ? (
+                          <span className="text-[0.6rem] px-1.5 py-0.2 rounded font-bold bg-cyan-50 text-cyan-800 border border-cyan-200">
+                            ✨ New
+                          </span>
+                        ) : (
+                          <span className="text-[0.6rem] px-1.5 py-0.2 rounded font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                            📦 Old
                           </span>
                         )}
                       </div>
@@ -1211,11 +1251,16 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                       </button>
 
                       <button
+                        disabled={isDeletingLogId === log.id}
                         onClick={() => handleDeleteLog(log.id)}
-                        className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                        title="Delete log"
+                        className="min-h-[32px] min-w-[32px] flex items-center justify-center p-1.5 text-rose-600 hover:text-rose-700 hover:bg-rose-100 bg-rose-50 border border-rose-200 rounded-lg transition cursor-pointer active:scale-95 disabled:opacity-50"
+                        title="Delete log record permanently"
                       >
-                        <Trash2 size={13} />
+                        {isDeletingLogId === log.id ? (
+                          <Loader2 size={13} className="animate-spin text-rose-600" />
+                        ) : (
+                          <Trash2 size={13} />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -1293,33 +1338,87 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
               </div>
 
               {/* Equipment Selection */}
-              <div>
-                <label className="block text-[0.68rem] uppercase font-black text-slate-700 mb-1">
-                  Select Equipment Item *
-                </label>
-                <select
-                  required
-                  value={issueData.equipmentId}
-                  onChange={(e) => setIssueData({ ...issueData, equipmentId: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold text-xs"
-                >
-                  {filteredModalEquipment.map(item => {
-                    const issuedForThis = activeIssuedLogs
-                      .filter(l => 
-                        (l.equipmentId || l.equipment_id) === item.id || 
-                        (l.equipmentName && item.name && l.equipmentName.toLowerCase().trim() === item.name.toLowerCase().trim())
-                      )
-                      .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-                    const totalUnits = Number(item.totalQty !== undefined ? item.totalQty : item.total_qty) || 0;
-                    const avail = Math.max(0, totalUnits - issuedForThis);
-                    return (
-                      <option key={item.id} value={item.id} disabled={avail === 0}>
-                        [{item.category}] {item.name} — ({avail} units available)
-                      </option>
-                    );
-                  })}
-                </select>
-              </div>
+                <div>
+                  <label className="block text-[0.68rem] uppercase font-black text-slate-700 mb-1">
+                    Select Equipment Item *
+                  </label>
+                  <select
+                    required
+                    value={issueData.equipmentId}
+                    onChange={(e) => {
+                      const newId = e.target.value;
+                      const it = equipmentList.find(x => x.id === newId);
+                      const defSt = it?.stockType === 'new' || (it?.newQty > 0 && it?.oldQty === 0) ? 'new' : 'old';
+                      setIssueData({ ...issueData, equipmentId: newId, stockType: defSt });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold text-xs"
+                  >
+                    {filteredModalEquipment.map(item => {
+                      const issuedForThis = activeIssuedLogs
+                        .filter(l => 
+                          (l.equipmentId || l.equipment_id) === item.id || 
+                          (l.equipmentName && item.name && l.equipmentName.toLowerCase().trim() === item.name.toLowerCase().trim())
+                        )
+                        .reduce((a, b) => a + (Number(b.qty) || 0), 0);
+                      const totalUnits = Number(item.totalQty !== undefined ? item.totalQty : item.total_qty) || 0;
+                      const avail = Math.max(0, totalUnits - issuedForThis);
+                      const stType = item.stockType || item.stock_type || 'old';
+                      return (
+                        <option key={item.id} value={item.id} disabled={avail === 0}>
+                          [{item.category}] {item.name} ({stType === 'new' ? '✨ New' : '📦 Old'}) — ({avail} available)
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Stock Origin Selection (New Stock vs Old Stock) */}
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[0.65rem] uppercase font-black text-slate-700">
+                      Stock Origin to Issue *
+                    </label>
+                    {(() => {
+                      const sel = equipmentList.find(e => e.id === issueData.equipmentId);
+                      if (!sel) return null;
+                      const n = Number(sel.newQty ?? sel.new_qty ?? 0);
+                      const o = Number(sel.oldQty ?? sel.old_qty ?? 0);
+                      return (
+                        <span className="text-[0.6rem] font-mono text-slate-500">
+                          {n > 0 && o > 0 ? `✨ ${n} new • 📦 ${o} old` : (sel.stockType === 'new' ? '✨ New Stock batch' : '📦 Old Stock batch')}
+                        </span>
+                      );
+                    })()}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIssueData(prev => ({ ...prev, stockType: 'new', issueCondition: 'Brand New / Mint' }))}
+                      className={`py-1.5 px-3 rounded-lg border font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        issueData.stockType === 'new'
+                          ? 'bg-cyan-600 text-white border-cyan-600 shadow-2xs font-black'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      <Sparkles size={12} className={issueData.stockType === 'new' ? 'text-white' : 'text-cyan-600'} />
+                      <span>✨ New Stock</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setIssueData(prev => ({ ...prev, stockType: 'old', issueCondition: 'Good Condition' }))}
+                      className={`py-1.5 px-3 rounded-lg border font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                        issueData.stockType === 'old'
+                          ? 'bg-slate-800 text-white border-slate-800 shadow-2xs font-black'
+                          : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                      }`}
+                    >
+                      <Box size={12} className={issueData.stockType === 'old' ? 'text-white' : 'text-slate-500'} />
+                      <span>📦 Old Stock</span>
+                    </button>
+                  </div>
+                </div>
 
               {/* Student Borrower Details */}
               <div className="p-3 bg-slate-50/80 border border-slate-200 rounded-xl space-y-2.5">
@@ -1819,10 +1918,17 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                 <span className="font-mono text-xs font-bold text-amber-400">#{dossierLog.id}</span>
               </div>
               <h4 className="text-base font-black tracking-tight">{dossierLog.equipmentName}</h4>
-              <div className="flex items-center gap-2 text-xs text-slate-300">
+              <div className="flex items-center gap-2 text-xs text-slate-300 flex-wrap">
                 <span>Issued Units: <strong className="text-white">{dossierLog.qty}</strong></span>
                 <span>•</span>
                 <span>Category: <strong className="text-white">{dossierLog.category || 'General Sports'}</strong></span>
+                <span>•</span>
+                <span>
+                  Origin:{' '}
+                  <strong className={dossierLog.stockType === 'new' ? 'text-cyan-300' : 'text-slate-300'}>
+                    {dossierLog.stockType === 'new' ? '✨ New Stock' : '📦 Old Stock'}
+                  </strong>
+                </span>
               </div>
             </div>
 
@@ -1928,8 +2034,23 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
               </div>
             </div>
 
-            <div className="pt-2 flex justify-end">
+            <div className="pt-2 flex items-center justify-between border-t border-slate-100">
               <button
+                type="button"
+                disabled={isDeletingLogId === dossierLog.id}
+                onClick={() => handleDeleteLog(dossierLog.id)}
+                className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 font-bold rounded-xl text-xs cursor-pointer flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"
+                title="Delete this record permanently"
+              >
+                {isDeletingLogId === dossierLog.id ? (
+                  <Loader2 size={13} className="animate-spin text-rose-600" />
+                ) : (
+                  <Trash2 size={13} />
+                )}
+                <span>Delete Record</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => setDossierLog(null)}
                 className="px-5 py-2 bg-slate-900 text-white font-bold rounded-xl text-xs cursor-pointer hover:bg-slate-800"
               >
