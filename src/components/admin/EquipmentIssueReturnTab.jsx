@@ -135,6 +135,8 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
   // Modals
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [modalSportCategory, setModalSportCategory] = useState('all');
+  const [isSubmittingIssue, setIsSubmittingIssue] = useState(false);
+  const [isSubmittingReturn, setIsSubmittingReturn] = useState(false);
   
   // Issue Form State
   const [issueData, setIssueData] = useState({
@@ -273,6 +275,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
     const formattedIssueDate = dateTimeLocalToDisplay(issueData.issueDateLocal);
     const formattedExpectedReturn = dateTimeLocalToDisplay(issueData.expectedReturnLocal);
 
+    setIsSubmittingIssue(true);
     try {
       await issueEquipment({
         equipmentId: targetEquip.id,
@@ -291,25 +294,26 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
         issueCondition: issueData.issueCondition,
         notes: issueData.notes
       });
-      showToast(`Successfully issued ${issueData.qty}x ${targetEquip.name} to ${issueData.borrowerName}. Synced to database.`);
+      showToast(`✓ Successfully issued ${issueData.qty}x ${targetEquip.name} to ${issueData.borrowerName}. Synced to database.`);
+      setIssueData({
+        equipmentId: '',
+        borrowerName: '',
+        rollNo: '',
+        branch: 'Computer Science & Engg (CSE)',
+        borrowerPhone: '',
+        qty: 1,
+        issueDateLocal: getNowDateTimeLocal(0),
+        expectedReturnLocal: getNowDateTimeLocal(4),
+        purpose: 'Practice Match & Training',
+        issueCondition: 'Good Condition',
+        notes: ''
+      });
+      setShowIssueModal(false);
     } catch (err) {
       showToast(err.message || 'Failed to issue equipment', 'error');
+    } finally {
+      setIsSubmittingIssue(false);
     }
-
-    setIssueData({
-      equipmentId: '',
-      borrowerName: '',
-      rollNo: '',
-      branch: 'Computer Science & Engg (CSE)',
-      borrowerPhone: '',
-      qty: 1,
-      issueDateLocal: getNowDateTimeLocal(0),
-      expectedReturnLocal: getNowDateTimeLocal(4),
-      purpose: 'Practice Match & Training',
-      issueCondition: 'Good Condition',
-      notes: ''
-    });
-    setShowIssueModal(false);
   };
 
   // Open Return Modal
@@ -325,6 +329,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
   const handleReturnConfirm = async () => {
     if (!returnLog) return;
     const formattedReturnDate = dateTimeLocalToDisplay(returnDateLocal);
+    setIsSubmittingReturn(true);
     try {
       await returnEquipment(
         returnLog.id, 
@@ -333,11 +338,13 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
         Number(returnQty), 
         formattedReturnDate
       );
-      showToast(`Return marked for ${returnLog.equipmentName} (${returnLog.borrowerName}). Synced to database.`);
+      showToast(`✓ Return marked for ${returnLog.equipmentName} (${returnLog.borrowerName}). Synced to database.`);
+      setReturnLog(null);
     } catch (err) {
       showToast(err.message || 'Failed to register return', 'error');
+    } finally {
+      setIsSubmittingReturn(false);
     }
-    setReturnLog(null);
   };
 
   // Delete Log
@@ -1512,15 +1519,26 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                 <button
                   type="button"
                   onClick={() => setShowIssueModal(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold cursor-pointer"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-md flex items-center gap-1.5 cursor-pointer"
+                  disabled={isSubmittingIssue}
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
                 >
-                  <ArrowUpRight size={15} /> Confirm & Issue Gear
+                  {isSubmittingIssue ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin text-white" />
+                      <span>Issuing to Cloud...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ArrowUpRight size={15} />
+                      <span>Confirm & Issue Gear</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -1589,7 +1607,9 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
               </div>
               <button
                 type="button"
+                disabled={isSubmittingReturn}
                 onClick={async () => {
+                  setIsSubmittingReturn(true);
                   const formattedNow = dateTimeLocalToDisplay(getNowDateTimeLocal(0));
                   try {
                     await returnEquipment(
@@ -1600,15 +1620,26 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                       formattedNow
                     );
                     showToast(`✓ Cleared ${returnLog.qty}x ${returnLog.equipmentName} returned by ${returnLog.borrowerName}.`);
+                    setReturnLog(null);
                   } catch (err) {
                     showToast(err.message || 'Failed to register return', 'error');
+                  } finally {
+                    setIsSubmittingReturn(false);
                   }
-                  setReturnLog(null);
                 }}
-                className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-lg font-black text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition"
+                className="w-full py-2.5 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white rounded-xl font-black text-xs shadow-sm flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 transition"
               >
-                <CheckCircle2 size={15} />
-                <span>⚡ 1-Tap Return: All {returnLog.qty} Unit(s) in Good Condition</span>
+                {isSubmittingReturn ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin text-white" />
+                    <span>Syncing Return to Cloud...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={15} />
+                    <span>⚡ 1-Tap Return: All {returnLog.qty} Unit(s) in Good Condition</span>
+                  </>
+                )}
               </button>
             </div>
 
@@ -1620,20 +1651,52 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
               <div className="flex-grow border-t border-slate-200"></div>
             </div>
 
-            {/* Quantity Returning Input (Supports Partial Returns) */}
+            {/* Quantity Returning Input (Supports Partial Returns with Mobile Stepper) */}
             <div>
-              <label className="block text-[0.68rem] uppercase font-black text-slate-700 mb-1">
-                Quantity Being Returned Today *
-              </label>
-              <input
-                type="number"
-                min="1"
-                max={returnLog.qty}
-                required
-                value={returnQty}
-                onChange={(e) => setReturnQty(Math.min(returnLog.qty, Math.max(1, Number(e.target.value))))}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold"
-              />
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[0.68rem] uppercase font-black text-slate-700">
+                  Quantity Being Returned Today *
+                </label>
+                <span className="text-[0.62rem] text-slate-400 font-bold">Total on loan: {returnLog.qty}</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setReturnQty(prev => Math.max(1, prev - 1))}
+                  className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-black text-base flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min="1"
+                  max={returnLog.qty}
+                  required
+                  value={returnQty}
+                  onChange={(e) => setReturnQty(Math.min(returnLog.qty, Math.max(1, Number(e.target.value))))}
+                  className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-black text-center text-xs"
+                />
+                <button
+                  type="button"
+                  onClick={() => setReturnQty(prev => Math.min(returnLog.qty, prev + 1))}
+                  className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-black text-base flex items-center justify-center cursor-pointer active:scale-95 shrink-0"
+                >
+                  +
+                </button>
+                {returnLog.qty > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setReturnQty(returnLog.qty)}
+                    className={`px-2.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer whitespace-nowrap active:scale-95 shrink-0 ${
+                      returnQty === returnLog.qty
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 font-black'
+                        : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    All ({returnLog.qty})
+                  </button>
+                )}
+              </div>
               {Number(returnQty) < Number(returnLog.qty) && (
                 <p className="text-[0.65rem] text-amber-600 font-bold mt-1">
                   ⚠️ Partial return! {returnLog.qty - returnQty} unit(s) will remain on loan to student.
@@ -1652,7 +1715,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                 required
                 value={returnDateLocal}
                 onChange={(e) => setReturnDateLocal(e.target.value)}
-                className="w-full px-3.5 py-2 bg-emerald-50/40 border border-emerald-200 rounded-xl text-slate-900 font-bold"
+                className="w-full px-3 py-2 bg-emerald-50/40 border border-emerald-200 rounded-xl text-slate-900 font-bold text-xs"
               />
               <span className="text-[0.62rem] text-slate-400 font-semibold mt-0.5 block">
                 Recorded for official physical equipment audit ledger.
@@ -1667,7 +1730,7 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
               <select
                 value={returnCondition}
                 onChange={(e) => setReturnCondition(e.target.value)}
-                className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold text-xs"
               >
                 <option value="Good Condition">Good Condition (No Damage)</option>
                 <option value="Minor Wear / Acceptable">Minor Wear / Acceptable</option>
@@ -1694,15 +1757,27 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
               <button
                 type="button"
                 onClick={() => setReturnLog(null)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold cursor-pointer"
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold cursor-pointer text-xs"
               >
                 Cancel
               </button>
               <button
+                type="button"
+                disabled={isSubmittingReturn}
                 onClick={handleReturnConfirm}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black shadow-md flex items-center gap-1.5 cursor-pointer"
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl font-black text-xs shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
               >
-                <Check size={16} /> Confirm Return of {returnQty} Unit(s)
+                {isSubmittingReturn ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin text-white" />
+                    <span>Recording Return...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} /> 
+                    <span>Confirm Return of {returnQty} Unit(s)</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

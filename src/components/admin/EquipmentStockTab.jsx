@@ -79,6 +79,9 @@ export default function EquipmentStockTab({ setActiveTab }) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSubmittingQuickIssue, setIsSubmittingQuickIssue] = useState(false);
+  const [returningLogId, setReturningLogId] = useState(null);
 
   // Quick Issue Direct Modal State
   const [quickIssueItem, setQuickIssueItem] = useState(null);
@@ -467,10 +470,12 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
   const openEditModal = (item) => {
     setEditingItem(item);
+    const rawQty = item.totalQty !== undefined ? item.totalQty : item.total_qty;
+    const parsedQty = rawQty !== undefined && rawQty !== null && !isNaN(Number(rawQty)) ? Number(rawQty) : 0;
     setNewEquip({
       name: item.name || '',
       category: item.category || 'Cricket',
-      totalQty: Number(item.totalQty ?? item.total_qty) || 1,
+      totalQty: parsedQty,
       condition: item.condition || 'Good Condition',
       location: item.location || 'Main Sports Store',
       notes: item.notes || ''
@@ -513,10 +518,11 @@ export default function EquipmentStockTab({ setActiveTab }) {
     const avail = Math.max(0, (Number(quickIssueItem.totalQty ?? quickIssueItem.total_qty) || 0) - issued);
 
     if (Number(quickIssueData.qty) > avail) {
-      alert(`Cannot issue ${quickIssueData.qty} units. Only ${avail} available!`);
+      alert(`Cannot issue ${quickIssueData.qty} units. Only ${avail} available in store!`);
       return;
     }
 
+    setIsSubmittingQuickIssue(true);
     try {
       await issueEquipment({
         equipmentId: quickIssueItem.id,
@@ -531,13 +537,15 @@ export default function EquipmentStockTab({ setActiveTab }) {
       });
 
       setQuickIssueSuccessMsg(`Successfully issued ${quickIssueData.qty}x ${quickIssueItem.name} to ${quickIssueData.borrowerName}!`);
-      showToast(`Issued ${quickIssueData.qty}x ${quickIssueItem.name} to ${quickIssueData.borrowerName}. Synced to database.`);
+      showToast(`✓ Issued ${quickIssueData.qty}x ${quickIssueItem.name} to ${quickIssueData.borrowerName}. Synced to database.`);
       setTimeout(() => {
         setQuickIssueItem(null);
         setQuickIssueSuccessMsg('');
-      }, 1200);
+      }, 1000);
     } catch (err) {
       showToast(err.message || 'Failed to issue equipment', 'error');
+    } finally {
+      setIsSubmittingQuickIssue(false);
     }
   };
 
@@ -546,20 +554,22 @@ export default function EquipmentStockTab({ setActiveTab }) {
     e.preventDefault();
     if (!newEquip.name.trim()) return;
 
+    setIsSaving(true);
     try {
       if (editingItem) {
         await updateEquipment(editingItem.id, newEquip);
-        showToast(`Updated ${newEquip.name}. Synced to database.`);
+        showToast(`✓ Updated "${newEquip.name}" (${newEquip.totalQty} units). Synced to database.`);
         setEditingItem(null);
       } else {
         await addEquipment(newEquip);
-        showToast(`Added ${newEquip.name} to inventory. Synced to database.`);
+        showToast(`✓ Added "${newEquip.name}" (${newEquip.totalQty} units) to inventory. Synced to database.`);
       }
+      setShowAddModal(false);
     } catch (err) {
       showToast(err.message || 'Failed to save equipment', 'error');
+    } finally {
+      setIsSaving(false);
     }
-
-    setShowAddModal(false);
   };
 
   // Handle Category Add
@@ -677,21 +687,40 @@ export default function EquipmentStockTab({ setActiveTab }) {
           </td>
 
           {/* Total Quantity (Compact Stepper) */}
-          <td className="py-2 px-2.5 text-center w-28">
+          <td className="py-2 px-2.5 text-center w-32">
             {inlineEditingId === item.id ? (
-              <input
-                type="number"
-                min="1"
-                autoFocus
-                value={inlineQtyValue}
-                onChange={(e) => setInlineQtyValue(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveInlineQty(item);
-                  if (e.key === 'Escape') setInlineEditingId(null);
-                }}
-                onBlur={() => handleSaveInlineQty(item)}
-                className="w-12 px-1 py-0.2 text-center text-xs font-black bg-white border border-amber-500 rounded text-slate-900 focus:outline-none"
-              />
+              <div className="flex items-center justify-center gap-1">
+                <input
+                  type="number"
+                  min="0"
+                  autoFocus
+                  value={inlineQtyValue}
+                  onChange={(e) => setInlineQtyValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveInlineQty(item);
+                    if (e.key === 'Escape') setInlineEditingId(null);
+                  }}
+                  className="w-14 px-1 py-0.5 text-center text-xs font-black bg-white border border-amber-500 rounded text-slate-900 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => handleSaveInlineQty(item)}
+                  className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded cursor-pointer transition"
+                  title="Save"
+                >
+                  <Check size={11} />
+                </button>
+                <button
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => setInlineEditingId(null)}
+                  className="p-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded cursor-pointer transition"
+                  title="Cancel"
+                >
+                  <X size={11} />
+                </button>
+              </div>
             ) : (
               <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-md border border-slate-200 font-mono text-xs shadow-2xs">
                 <button
@@ -704,7 +733,7 @@ export default function EquipmentStockTab({ setActiveTab }) {
                 <span 
                   onClick={() => {
                     setInlineEditingId(item.id);
-                    setInlineQtyValue(String(item.totalQty ?? item.total_qty ?? 1));
+                    setInlineQtyValue(String(item.totalQty !== undefined ? item.totalQty : (item.total_qty !== undefined ? item.total_qty : 0)));
                   }}
                   className="w-7 text-center font-bold text-slate-900 hover:bg-amber-100 rounded cursor-text"
                   title="Click to edit quantity"
@@ -952,53 +981,75 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
           {/* Stepper for stock counting */}
           {inlineEditingId === item.id ? (
-            <input
-              type="number"
-              min="1"
-              autoFocus
-              value={inlineQtyValue}
-              onChange={(e) => setInlineQtyValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveInlineQty(item);
-                if (e.key === 'Escape') setInlineEditingId(null);
-              }}
-              onBlur={() => handleSaveInlineQty(item)}
-              className="w-16 px-1.5 py-1 text-center text-xs font-black bg-white border border-amber-500 rounded-xl text-slate-900 focus:outline-none shadow-xs"
-            />
+            <div className="flex items-center gap-1 bg-amber-50 p-1 rounded-xl border border-amber-300">
+              <input
+                type="number"
+                min="0"
+                autoFocus
+                value={inlineQtyValue}
+                onChange={(e) => setInlineQtyValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveInlineQty(item);
+                  if (e.key === 'Escape') setInlineEditingId(null);
+                }}
+                className="w-14 px-1.5 py-1 text-center text-xs font-black bg-white border border-amber-500 rounded-lg text-slate-900 focus:outline-none shadow-xs"
+              />
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleSaveInlineQty(item)}
+                className="p-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg cursor-pointer shadow-xs active:scale-95 flex items-center justify-center min-w-[28px] min-h-[28px]"
+                title="Save Stock"
+              >
+                <Check size={13} />
+              </button>
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setInlineEditingId(null)}
+                className="p-1.5 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg cursor-pointer active:scale-95 flex items-center justify-center min-w-[28px] min-h-[28px]"
+                title="Cancel"
+              >
+                <X size={13} />
+              </button>
+            </div>
           ) : (
             <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 font-mono text-xs shadow-2xs">
               <button
+                type="button"
                 onClick={() => handleQuickQtyChange(item, -1)}
-                className="px-2 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-white rounded-lg cursor-pointer transition"
+                className="w-8 h-8 text-slate-700 hover:text-slate-900 hover:bg-white rounded-lg cursor-pointer transition flex items-center justify-center active:scale-90"
                 title="-1 unit"
               >
-                <Minus size={12} />
+                <Minus size={13} />
               </button>
-              <span 
+              <button 
+                type="button"
                 onClick={() => {
                   setInlineEditingId(item.id);
-                  setInlineQtyValue(String(item.totalQty ?? item.total_qty ?? 1));
+                  setInlineQtyValue(String(item.totalQty !== undefined ? item.totalQty : (item.total_qty !== undefined ? item.total_qty : 0)));
                 }}
-                className="w-8 text-center font-bold text-slate-900 cursor-text"
-                title="Click to edit quantity"
+                className="px-2 py-1 text-center font-bold text-slate-900 hover:bg-amber-100 rounded-lg cursor-pointer transition min-w-[28px]"
+                title="Tap to type quantity directly"
               >
                 {item.totalQty ?? item.total_qty ?? 0}
-              </span>
+              </button>
               <button
+                type="button"
                 onClick={() => handleQuickQtyChange(item, 1)}
-                className="px-2 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-white rounded-lg cursor-pointer transition"
+                className="w-8 h-8 text-slate-700 hover:text-slate-900 hover:bg-white rounded-lg cursor-pointer transition flex items-center justify-center active:scale-90"
                 title="+1 unit"
               >
-                <Plus size={12} />
+                <Plus size={13} />
               </button>
             </div>
           )}
 
           {/* Edit / Delete Icons */}
-          <div className="flex items-center gap-0.5 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => openEditModal(item)}
-              className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg cursor-pointer transition"
+              className="w-8 h-8 text-slate-600 hover:text-blue-600 hover:bg-blue-50 bg-slate-100 border border-slate-200 rounded-lg cursor-pointer transition flex items-center justify-center active:scale-95"
               title="Edit gear"
             >
               <Edit2 size={13} />
@@ -1010,7 +1061,7 @@ export default function EquipmentStockTab({ setActiveTab }) {
                   deleteEquipment(item.id);
                 }
               }}
-              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition"
+              className="w-8 h-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 bg-slate-100 border border-slate-200 rounded-lg cursor-pointer transition flex items-center justify-center active:scale-95"
               title="Delete item"
             >
               <Trash2 size={13} />
@@ -1044,20 +1095,28 @@ export default function EquipmentStockTab({ setActiveTab }) {
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[0.62rem]">
                     <span className="text-slate-400">Issued: {log.issueDate}</span>
                     <button
+                      disabled={returningLogId === log.id}
                       onClick={async () => {
                         if (confirm(`Accept return of ${log.qty}x "${item.name}" from ${log.borrowerName}?`)) {
+                          setReturningLogId(log.id);
                           try {
                             await returnEquipment(log.id, 'Good Condition', 'Returned at stock desk', log.qty);
                             showToast(`✓ Accepted return of ${log.qty}x ${item.name} from ${log.borrowerName}`);
                           } catch (err) {
                             showToast(err.message || 'Failed to accept return', 'error');
+                          } finally {
+                            setReturningLogId(null);
                           }
                         }
                       }}
-                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95"
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-lg shadow-2xs cursor-pointer flex items-center gap-1 active:scale-95"
                     >
-                      <RotateCcw size={10} />
-                      <span>✓ Accept Return</span>
+                      {returningLogId === log.id ? (
+                        <RefreshCw size={10} className="animate-spin" />
+                      ) : (
+                        <RotateCcw size={10} />
+                      )}
+                      <span>{returningLogId === log.id ? 'Returning...' : '✓ Accept Return'}</span>
                     </button>
                   </div>
                 </div>
@@ -1889,18 +1948,44 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-[0.65rem] uppercase font-black text-slate-600 mb-1">
-                      Units to Issue *
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max={quickIssueItem.totalQty}
-                      required
-                      value={quickIssueData.qty}
-                      onChange={(e) => setQuickIssueData({ ...quickIssueData, qty: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-bold text-xs focus:outline-none focus:border-amber-500"
-                    />
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-[0.65rem] uppercase font-black text-slate-600">
+                        Units to Issue *
+                      </label>
+                      {quickIssueItem && (
+                        <span className="text-[0.62rem] text-emerald-700 font-bold">
+                          Max: {Math.max(0, (Number(quickIssueItem.totalQty ?? quickIssueItem.total_qty) || 0) - activeIssuedLogs.filter(l => (l.equipmentId || l.equipment_id) === quickIssueItem.id).reduce((a, b) => a + (Number(b.qty) || 0), 0))}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setQuickIssueData(prev => ({ ...prev, qty: Math.max(1, Number(prev.qty) - 1) }))}
+                        className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-black text-sm flex items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        -
+                      </button>
+                      <input
+                        type="number"
+                        min="1"
+                        max={quickIssueItem ? Math.max(1, (Number(quickIssueItem.totalQty ?? quickIssueItem.total_qty) || 0) - activeIssuedLogs.filter(l => (l.equipmentId || l.equipment_id) === quickIssueItem.id).reduce((a, b) => a + (Number(b.qty) || 0), 0)) : 10}
+                        required
+                        value={quickIssueData.qty}
+                        onChange={(e) => setQuickIssueData({ ...quickIssueData, qty: Number(e.target.value) })}
+                        className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-black text-xs text-center focus:outline-none focus:border-amber-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const maxAvail = quickIssueItem ? Math.max(1, (Number(quickIssueItem.totalQty ?? quickIssueItem.total_qty) || 0) - activeIssuedLogs.filter(l => (l.equipmentId || l.equipment_id) === quickIssueItem.id).reduce((a, b) => a + (Number(b.qty) || 0), 0)) : 10;
+                          setQuickIssueData(prev => ({ ...prev, qty: Math.min(maxAvail, Number(prev.qty) + 1) }));
+                        }}
+                        className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-black text-sm flex items-center justify-center cursor-pointer active:scale-95"
+                      >
+                        +
+                      </button>
+                    </div>
                   </div>
 
                   <div>
@@ -1912,7 +1997,7 @@ export default function EquipmentStockTab({ setActiveTab }) {
                       placeholder="e.g. 5:30 PM Today"
                       value={quickIssueData.expectedReturn}
                       onChange={(e) => setQuickIssueData({ ...quickIssueData, expectedReturn: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-medium text-xs focus:outline-none focus:border-amber-500"
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-medium text-xs focus:outline-none focus:border-amber-500"
                     />
                     {/* Quick duration buttons */}
                     <div className="flex items-center gap-1 mt-1 flex-wrap">
@@ -1921,7 +2006,7 @@ export default function EquipmentStockTab({ setActiveTab }) {
                           key={dur}
                           type="button"
                           onClick={() => setQuickIssueData(prev => ({ ...prev, expectedReturn: dur }))}
-                          className="px-1.5 py-0.2 bg-white hover:bg-amber-50 text-amber-900 font-bold text-[0.58rem] rounded border border-amber-200 cursor-pointer"
+                          className="px-1.5 py-0.5 bg-white hover:bg-amber-50 text-amber-900 font-bold text-[0.58rem] rounded border border-amber-200 cursor-pointer"
                         >
                           {dur}
                         </button>
@@ -1953,10 +2038,20 @@ export default function EquipmentStockTab({ setActiveTab }) {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg font-black text-xs shadow-xs flex items-center gap-1 cursor-pointer"
+                    disabled={isSubmittingQuickIssue}
+                    className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 rounded-lg font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
                   >
-                    <Zap size={13} className="fill-slate-950" />
-                    <span>Confirm Issue</span>
+                    {isSubmittingQuickIssue ? (
+                      <>
+                        <RefreshCw size={13} className="animate-spin text-slate-950" />
+                        <span>Issuing Gear...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Zap size={13} className="fill-slate-950" />
+                        <span>Confirm Issue</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </form>
@@ -1968,22 +2063,25 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
       {/* 7. MODAL: ADD / EDIT EQUIPMENT STOCK */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
-          <div className="bg-white rounded-2xl p-4 sm:p-5 max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl space-y-3.5 border border-slate-200">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-sm sm:max-w-md w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+            
+            {/* Modal Header (Pinned) */}
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between shrink-0 bg-slate-50/50">
               <h4 className="font-black text-slate-900 text-sm flex items-center gap-2">
-                <Package className="text-amber-500" size={17} />
-                <span>{editingItem ? 'Edit Gear Stock' : 'Add Equipment Gear'}</span>
+                <Package className="text-amber-500" size={18} />
+                <span>{editingItem ? `Edit "${editingItem.name}"` : 'Add Equipment Gear'}</span>
               </h4>
               <button 
                 onClick={() => setShowAddModal(false)} 
-                className="text-slate-400 hover:text-slate-600 p-1 cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 cursor-pointer"
               >
-                <X size={16} />
+                <X size={17} />
               </button>
             </div>
 
-            <form onSubmit={handleAddSubmit} className="space-y-3 text-xs font-semibold">
+            {/* Modal Scrollable Body */}
+            <form onSubmit={handleAddSubmit} className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs font-semibold">
               <div>
                 <label className="block text-[0.65rem] uppercase font-black text-slate-600 mb-1">
                   Sport Discipline *
@@ -2015,27 +2113,53 @@ export default function EquipmentStockTab({ setActiveTab }) {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
-                  <label className="block text-[0.65rem] uppercase font-black text-slate-600 mb-1">
-                    Total Units *
-                  </label>
-                  <input
-                    type="number"
-                    min="1"
-                    required
-                    value={newEquip.totalQty}
-                    onChange={(e) => setNewEquip({ ...newEquip, totalQty: Number(e.target.value) })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-bold text-xs focus:outline-none focus:border-amber-500"
-                  />
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[0.65rem] uppercase font-black text-slate-600">
+                      Total Units in Stock *
+                    </label>
+                    <span className="text-[0.6rem] text-slate-400 font-mono">(0 = Out of Stock)</span>
+                  </div>
+                  
+                  {/* Stepper + Input for Mobile */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setNewEquip(prev => ({ ...prev, totalQty: Math.max(0, Number(prev.totalQty) - 1) }))}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer active:scale-95"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="number"
+                      min="0"
+                      required
+                      value={newEquip.totalQty}
+                      onChange={(e) => setNewEquip({ ...newEquip, totalQty: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                      className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-black text-xs text-center focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewEquip(prev => ({ ...prev, totalQty: Number(prev.totalQty) + 1 }))}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 font-black text-sm flex items-center justify-center cursor-pointer active:scale-95"
+                    >
+                      +
+                    </button>
+                  </div>
+
                   {/* Quick Preset Buttons */}
-                  <div className="flex items-center gap-1 mt-1">
-                    {[5, 10, 25, 50].map(val => (
+                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                    {[0, 5, 10, 20, 50].map(val => (
                       <button
                         key={val}
                         type="button"
                         onClick={() => setNewEquip({ ...newEquip, totalQty: val })}
-                        className="px-1.5 py-0.5 rounded text-[0.6rem] font-bold bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer"
+                        className={`px-2 py-0.5 rounded text-[0.6rem] font-bold border transition cursor-pointer ${
+                          newEquip.totalQty === val 
+                            ? 'bg-amber-500 text-slate-950 border-amber-600 shadow-2xs font-black' 
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200'
+                        }`}
                       >
                         {val}
                       </button>
@@ -2045,7 +2169,7 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
                 <div>
                   <label className="block text-[0.65rem] uppercase font-black text-slate-600 mb-1">
-                    Condition
+                    Equipment Condition
                   </label>
                   <select
                     value={newEquip.condition}
@@ -2086,19 +2210,31 @@ export default function EquipmentStockTab({ setActiveTab }) {
                 />
               </div>
 
-              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+              {/* Modal Footer (Pinned) */}
+              <div className="pt-3 flex justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs cursor-pointer"
+                  className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-xs cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg font-black text-xs shadow-xs cursor-pointer"
+                  disabled={isSaving}
+                  className="px-5 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-slate-950 rounded-xl font-black text-xs shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
                 >
-                  {editingItem ? 'Save Changes' : 'Add Item'}
+                  {isSaving ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin text-slate-950" />
+                      <span>Saving to Cloud...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check size={14} />
+                      <span>{editingItem ? 'Save Changes' : 'Add Item'}</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
