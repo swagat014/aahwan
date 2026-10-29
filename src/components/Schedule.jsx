@@ -6,9 +6,9 @@ import { useApp } from '../context/AppContext';
 export default function Schedule() {
   const { schedule, year, festivalName } = useApp();
   const dayNumbers = Object.keys(schedule).map(Number).sort((a, b) => a - b);
-  const [activeDay, setActiveDay] = useState(dayNumbers[0] || 1);
-
-  const activeFixtures = schedule[activeDay] || [];
+  const [activeDay, setActiveDay] = useState(() => (dayNumbers.length > 0 ? dayNumbers[0] : 1));
+  const selectedDay = dayNumbers.includes(activeDay) ? activeDay : (dayNumbers[0] || 1);
+  const activeFixtures = schedule[selectedDay] || [];
 
   return (
     <section id="schedule" className="py-12 sm:py-24 bg-white relative overflow-hidden select-none">
@@ -45,12 +45,12 @@ export default function Schedule() {
             <button
               key={dayNum}
               onClick={() => setActiveDay(dayNum)}
-              className={`relative px-4 sm:px-6 py-2 sm:py-2.5 rounded-full font-black text-xs transition-colors shrink-0 cursor-pointer ${activeDay === dayNum
+              className={`relative px-4 sm:px-6 py-2 sm:py-2.5 rounded-full font-black text-xs transition-colors shrink-0 cursor-pointer ${selectedDay === dayNum
                 ? 'text-white'
                 : 'text-slate-700 hover:text-blue-600 bg-slate-100'
                 }`}
             >
-              {activeDay === dayNum && (
+              {selectedDay === dayNum && (
                 <motion.div
                   layoutId="activeSchedulePillCompact"
                   className="absolute inset-0 bg-blue-600 rounded-full shadow-md shadow-blue-500/30"
@@ -66,7 +66,7 @@ export default function Schedule() {
         <div className="max-w-4xl mx-auto space-y-3">
           <AnimatePresence mode="wait">
             <motion.div
-              key={activeDay}
+              key={selectedDay}
               initial={{ opacity: 0, y: 15 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -15 }}
@@ -74,42 +74,44 @@ export default function Schedule() {
               className="space-y-3"
             >
               {activeFixtures.length > 0 ? (
-                activeFixtures.map((item, idx) => (
-                  <motion.div
-                    key={idx}
-                    whileHover={{ scale: 1.01, y: -2 }}
-                    className="award-glass-card rounded-2xl p-4 border border-slate-200/90 bg-white hover:border-blue-500 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
-                  >
-                    <div className="flex items-center gap-3.5 min-w-0">
+                activeFixtures.map((item, idx) => {
+                  const label = item.statusLabel || item.status_label || (item.status === 'live' ? 'LIVE NOW' : item.status === 'completed' ? 'Completed' : 'Upcoming');
+                  return (
+                    <motion.div
+                      key={item.id || idx}
+                      whileHover={{ scale: 1.01, y: -2 }}
+                      className="award-glass-card rounded-2xl p-4 border border-slate-200/90 bg-white hover:border-blue-500 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                    >
+                      <div className="flex items-center gap-3.5 min-w-0">
 
-                      {/* Compact Clock Emblem */}
-                      <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0 text-sm shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                        <Clock size={18} />
-                      </div>
-
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="text-[0.7rem] font-black text-blue-600 uppercase tracking-widest">{item.time}</span>
-
-                          {/* Status Badge */}
-                          {item.status === 'live' && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-gradient-to-r from-rose-600 to-red-600 text-white font-black text-[0.62rem] rounded-full uppercase tracking-wider animate-pulse shadow-sm">
-                              <Flame size={10} /> {item.statusLabel}
-                            </span>
-                          )}
-
-                          {item.status === 'completed' && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 font-black text-[0.62rem] rounded-full uppercase">
-                              <CheckCircle2 size={10} /> {item.statusLabel}
-                            </span>
-                          )}
-
-                          {item.status === 'upcoming' && (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 text-amber-900 border border-amber-200/90 font-black text-[0.62rem] rounded-full uppercase">
-                              {item.statusLabel}
-                            </span>
-                          )}
+                        {/* Compact Clock Emblem */}
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 text-blue-600 flex items-center justify-center shrink-0 text-sm shadow-sm group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                          <Clock size={18} />
                         </div>
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="text-[0.7rem] font-black text-blue-600 uppercase tracking-widest">{item.time}</span>
+
+                            {/* Status Badge */}
+                            {item.status === 'live' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-gradient-to-r from-rose-600 to-red-600 text-white font-black text-[0.62rem] rounded-full uppercase tracking-wider animate-pulse shadow-sm">
+                                <Flame size={10} /> {label}
+                              </span>
+                            )}
+
+                            {item.status === 'completed' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 font-black text-[0.62rem] rounded-full uppercase">
+                                <CheckCircle2 size={10} /> {label}
+                              </span>
+                            )}
+
+                            {item.status === 'upcoming' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-amber-50 text-amber-900 border border-amber-200/90 font-black text-[0.62rem] rounded-full uppercase">
+                                {label}
+                              </span>
+                            )}
+                          </div>
 
                         <h3 className="font-black text-base text-slate-900 group-hover:text-blue-600 transition-colors leading-tight truncate">
                           {item.title}
@@ -126,12 +128,13 @@ export default function Schedule() {
                     </div>
 
                   </motion.div>
-                ))
-              ) : (
-                <div className="text-center p-8 bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 font-bold">
-                  No match fixtures scheduled for Day {activeDay} yet.
-                </div>
-              )}
+                );
+              })
+            ) : (
+              <div className="text-center p-8 bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 font-bold">
+                No match fixtures scheduled for Day {selectedDay} yet.
+              </div>
+            )}
             </motion.div>
           </AnimatePresence>
         </div>

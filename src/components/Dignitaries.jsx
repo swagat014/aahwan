@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Crown, Shield, Star, Users } from 'lucide-react';
+import { Crown, Shield, Star, Users, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { dignitariesData as defaultDignitaries } from '../data/scheduleData';
 
@@ -163,13 +163,14 @@ export default function Dignitaries() {
 
         {/* TIER 3: Student Leadership (Sports Secretary & Student Coordinators) */}
         {tier3.length > 0 && (
-          <div>
-            <div className="flex items-center justify-center gap-3 mb-6 sm:mb-8">
-              <div className="h-[2px] w-8 sm:w-12 bg-emerald-500 rounded-full" />
-              <h3 className="font-black text-[0.65rem] sm:text-xs uppercase tracking-[0.2em] sm:tracking-[0.25em] text-slate-500 text-center">
-                Student Body Officers & Conveners
-              </h3>
-              <div className="h-[2px] w-8 sm:w-12 bg-emerald-500 rounded-full" />
+          <div className="pt-1">
+            <div className="flex items-center justify-center gap-3 mb-4 sm:mb-6">
+              <div className="h-px w-8 sm:w-14 bg-gradient-to-r from-transparent to-emerald-400" />
+              <div className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-[0.62rem] sm:text-xs font-black uppercase tracking-[0.18em] shadow-2xs">
+                <Users size={11} className="text-emerald-600" />
+                <span>Student Body Officers & Conveners</span>
+              </div>
+              <div className="h-px w-8 sm:w-14 bg-gradient-to-l from-transparent to-emerald-400" />
             </div>
 
             <motion.div
@@ -177,33 +178,51 @@ export default function Dignitaries() {
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, margin: '-80px' }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 max-w-3xl mx-auto"
+              className="grid grid-cols-2 gap-3 sm:gap-4 max-w-lg mx-auto"
             >
               {tier3.map((leader, idx) => (
                 <motion.div
                   key={idx}
                   variants={cardVariants}
-                  whileHover={{ y: -4, scale: 1.01 }}
-                  className="award-glass-card rounded-2xl sm:rounded-3xl p-5 sm:p-6 text-center border border-slate-200/90 shadow-sm hover:shadow-lg transition-all flex flex-col items-center group bg-white"
+                  whileHover={{ y: -3, scale: 1.015 }}
+                  className="award-glass-card rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 text-center border border-slate-200/90 hover:border-emerald-400/80 shadow-xs hover:shadow-lg transition-all duration-300 bg-white/95 backdrop-blur-md flex flex-col items-center group relative overflow-hidden"
                 >
-                  <div className="relative w-20 h-20 sm:w-24 sm:h-24 mb-3 rounded-full p-1 bg-gradient-to-tr from-emerald-500 to-teal-600 shadow-md group-hover:scale-105 transition-transform duration-300">
+                  {/* Subtle top accent gradient line */}
+                  <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-500 opacity-80 group-hover:opacity-100 transition-opacity" />
+
+                  {/* Compact, Crisp, Circular Avatar */}
+                  <div className="relative w-18 h-18 sm:w-20 sm:h-20 mb-2 rounded-full p-1 bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-400 shadow-sm group-hover:scale-105 transition-transform duration-300">
                     <img
                       src={leader.image || '/assets/images/sports_secretary_action_1786977259887.png'}
                       alt={leader.name}
                       onError={(e) => { e.currentTarget.src = '/assets/images/sports_secretary_action_1786977259887.png'; }}
-                      className="w-full h-full rounded-full object-cover border-2 border-white"
+                      className="w-full h-full rounded-full object-cover object-top border-2 border-white shadow-2xs"
                     />
+                    <div className="absolute bottom-0 right-0 w-4.5 h-4.5 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-xs">
+                      <Star size={8} className="fill-white text-white" />
+                    </div>
                   </div>
 
-                  <span className="inline-block px-3 py-1 bg-emerald-50 text-emerald-700 text-[0.68rem] font-black rounded-full uppercase tracking-wider mb-2 border border-emerald-200/60">
-                    {leader.role}
+                  {/* Compact Role Badge */}
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-800 text-[0.6rem] sm:text-[0.62rem] font-black rounded-full uppercase tracking-wider mb-1 border border-emerald-200/80 shadow-2xs">
+                    <Shield size={9} className="text-emerald-600" />
+                    <span>{leader.role}</span>
                   </span>
 
-                  <h4 className="font-black text-base sm:text-lg text-slate-900 mb-0.5">{leader.name}</h4>
-                  <p className="text-[0.7rem] font-bold text-slate-500 mb-3">{leader.dept}</p>
+                  {/* Officer Name */}
+                  <h4 className="font-black text-xs sm:text-sm text-slate-900 mb-0.5 leading-snug truncate w-full group-hover:text-emerald-700 transition-colors">
+                    {leader.name}
+                  </h4>
 
-                  <div className="bg-slate-50 p-3 rounded-xl border-l-4 border-emerald-500 text-slate-700 text-xs italic mt-auto leading-relaxed text-left w-full">
-                    "{leader.quote}"
+                  {/* Department / Unit */}
+                  <p className="text-[0.62rem] sm:text-[0.68rem] font-semibold text-slate-500 truncate w-full">
+                    {leader.dept}
+                  </p>
+
+                  {/* Compact Micro-Footer */}
+                  <div className="mt-2 pt-1.5 border-t border-slate-100/90 w-full flex items-center justify-center gap-1 text-[0.58rem] font-bold text-emerald-700">
+                    <Sparkles size={8} className="text-emerald-600" />
+                    <span>AAHWAN Lead</span>
                   </div>
                 </motion.div>
               ))}

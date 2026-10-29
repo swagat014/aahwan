@@ -6,10 +6,12 @@ import { useApp } from '../context/AppContext';
 export default function Leaderboard() {
   const {
     getStandings, teamPointsRule, athleticsPointsRule,
-    festivalName, year
+    festivalName, year, schedule
   } = useApp();
 
   const [activeTab, setActiveTab] = useState('overall'); // 'overall' | 1 | 2 | 3
+  const dayNumbers = schedule ? Object.keys(schedule).map(Number).sort((a, b) => a - b) : [1, 2, 3];
+  const daysList = dayNumbers.length > 0 ? dayNumbers : [1, 2, 3];
 
   const currentStandings = getStandings(activeTab);
 
@@ -74,7 +76,7 @@ export default function Leaderboard() {
               🏆 Overall Standings
             </button>
 
-            {[1, 2, 3].map(dayNum => (
+            {daysList.map(dayNum => (
               <button
                 key={dayNum}
                 onClick={() => setActiveTab(dayNum)}
@@ -100,7 +102,7 @@ export default function Leaderboard() {
             <div className="flex items-center gap-2">
               <Sparkles size={14} className="text-blue-500" />
               <span>
-                <strong>Team Games:</strong> 1st={teamPointsRule.gold || 8}Pts, 2nd={teamPointsRule.silver || 5}Pts
+                <strong>Team Games:</strong> 1st={teamPointsRule?.gold ?? 7}Pts, 2nd={teamPointsRule?.silver ?? 5}Pts
               </span>
             </div>
           </div>
@@ -181,8 +183,8 @@ export default function Leaderboard() {
                 <tr className="bg-slate-900 text-white font-black uppercase tracking-wider text-[0.65rem] sm:text-xs">
                   <th className="py-3 px-3 sm:py-4 sm:px-6">Rank</th>
                   <th className="py-3 px-3 sm:py-4 sm:px-6">Engineering Branch</th>
-                  <th className="py-3 px-2.5 sm:py-4 sm:px-6 text-center">Athletics Medals (5/3/1 Pts)</th>
-                  <th className="py-3 px-2.5 sm:py-4 sm:px-6 text-center">Team Medals (8/5 Pts)</th>
+                  <th className="py-3 px-2.5 sm:py-4 sm:px-6 text-center">Athletics Medals ({athleticsPointsRule?.gold ?? 5}/{athleticsPointsRule?.silver ?? 3}/{athleticsPointsRule?.bronze ?? 1} Pts)</th>
+                  <th className="py-3 px-2.5 sm:py-4 sm:px-6 text-center">Team Medals ({teamPointsRule?.gold ?? 7}/{teamPointsRule?.silver ?? 5} Pts)</th>
                   <th className="py-3 px-3 sm:py-4 sm:px-6 text-right">Points</th>
                 </tr>
               </thead>

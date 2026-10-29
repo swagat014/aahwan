@@ -39,8 +39,10 @@ export default function ScheduleLeaderboardTab() {
     addScheduleDay, 
     removeScheduleDay, 
     addFixture, 
+    updateFixture,
     deleteFixture, 
     updateFixtureStatus,
+    resetScheduleToDefault,
     teamPointsRule, 
     setTeamPointsRule,
     athleticsPointsRule, 
@@ -80,6 +82,8 @@ export default function ScheduleLeaderboardTab() {
   
   const [selectedFixtureDay, setSelectedFixtureDay] = useState(() => dayNumbers[0] || 1);
   const [showAddFixtureModal, setShowAddFixtureModal] = useState(false);
+  const [editingFixture, setEditingFixture] = useState(null);
+  const [showEditFixtureModal, setShowEditFixtureModal] = useState(false);
   const [newFixture, setNewFixture] = useState({
     time: '02:00 PM - 04:00 PM',
     title: '',
@@ -96,10 +100,10 @@ export default function ScheduleLeaderboardTab() {
     { code: 'CE', name: 'Civil Engineering', badge: 'bg-purple-500/10 text-purple-700 border-purple-200' }
   ];
 
-  // Calculated Standings for active day
+  // Calculated Standings for active day (Reactively re-evaluates on winner, override, and point rule changes)
   const activeStandings = useMemo(() => {
     return getStandings(selectedScoreDay);
-  }, [getStandings, selectedScoreDay]);
+  }, [getStandings, selectedScoreDay, sportWinners, branchPointsOverride, teamPointsRule, athleticsPointsRule]);
 
   // Check if all branches have 0 points (pre-tournament zero state)
   const allZero = useMemo(() => {
@@ -190,8 +194,9 @@ export default function ScheduleLeaderboardTab() {
   // Filtered Sports for Winner Assignment Tab
   const filteredWinnerSports = useMemo(() => {
     return sports.filter(sport => {
-      const winner = sportWinners[sport.id] || sportWinners[sport.title] || {};
-      const eventDay = winner.day || parseInt((sport.time || '').replace(/[^0-9]/g, '')) || 1;
+      const winner = (findSportWinner && typeof findSportWinner === 'function' ? findSportWinner(sportWinners, sport) : (sportWinners[sport.id] || sportWinners[sport.title])) || {};
+      const dayMatch = (sport.time || '').match(/Day\s*(\d+)/i);
+      const eventDay = winner.day || (dayMatch ? parseInt(dayMatch[1], 10) : 1);
       
       const matchesDay = winnerDayFilter === 'all' || parseInt(eventDay) === parseInt(winnerDayFilter);
       const q = winnerSearch.toLowerCase();
@@ -202,7 +207,7 @@ export default function ScheduleLeaderboardTab() {
 
       return matchesDay && matchesSearch;
     });
-  }, [sports, sportWinners, winnerDayFilter, winnerSearch]);
+  }, [sports, sportWinners, winnerDayFilter, winnerSearch, findSportWinner]);
 
   // Total Fixture Matches Count
   const totalFixturesCount = useMemo(() => {
@@ -240,6 +245,33 @@ export default function ScheduleLeaderboardTab() {
     setShowAddFixtureModal(false);
     setToastMsg(`Fixture added to Day ${selectedFixtureDay}`);
     setTimeout(() => setToastMsg(''), 2500);
+  };
+
+  // Edit Fixture Submit
+  const handleEditFixtureSubmit = (e) => {
+    e.preventDefault();
+    if (!editingFixture || !editingFixture.title.trim()) return;
+
+    const label = editingFixture.status === 'live' ? 'LIVE NOW' : editingFixture.status === 'completed' ? 'Completed' : 'Upcoming';
+    updateFixture(editingFixture.day || selectedFixtureDay, editingFixture.id, {
+      ...editingFixture,
+      statusLabel: label,
+      status_label: label
+    });
+
+    setShowEditFixtureModal(false);
+    setEditingFixture(null);
+    setToastMsg(`Fixture updated successfully!`);
+    setTimeout(() => setToastMsg(''), 2500);
+  };
+
+  // Restore Official Match Schedule Roster
+  const handleResetScheduleToDefault = () => {
+    if (window.confirm("Restore official festival fixtures roster? This will reload the default 3-day championship matches timetable.")) {
+      resetScheduleToDefault();
+      setToastMsg("Official festival schedule roster restored & synced live!");
+      setTimeout(() => setToastMsg(''), 3000);
+    }
   };
 
   // Export Standings CSV
@@ -439,10 +471,10 @@ export default function ScheduleLeaderboardTab() {
         {/* Quick Rule Pill Snapshot */}
         <div className="hidden lg:flex items-center gap-2 text-[0.62rem] font-bold text-slate-500 pr-2">
           <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200">
-            🏃 Ath: {athleticsPointsRule.gold || 5}/{athleticsPointsRule.silver || 3}/{athleticsPointsRule.bronze || 1} Pts
+            🏃 Ath: {athleticsPointsRule?.gold ?? 5}/{athleticsPointsRule?.silver ?? 3}/{athleticsPointsRule?.bronze ?? 1} Pts
           </span>
           <span className="px-2 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200">
-            ⚽ Team: {teamPointsRule.gold || 8}/{teamPointsRule.silver || 5} Pts
+            ⚽ Team: {teamPointsRule?.gold ?? 7}/{teamPointsRule?.silver ?? 5} Pts
           </span>
         </div>
       </div>
@@ -539,8 +571,8 @@ export default function ScheduleLeaderboardTab() {
                   <tr>
                     <th className="py-2.5 px-3 w-12 text-center">Rank</th>
                     <th className="py-2.5 px-3.5">Engineering Branch</th>
-                    <th className="py-2.5 px-3 text-center">Athletics Medals ({athleticsPointsRule.gold || 5}/{athleticsPointsRule.silver || 3}/{athleticsPointsRule.bronze || 1} Pts)</th>
-                    <th className="py-2.5 px-3 text-center">Team Sports Medals ({teamPointsRule.gold || 8}/{teamPointsRule.silver || 5} Pts)</th>
+                    <th className="py-2.5 px-3 text-center">Athletics Medals ({athleticsPointsRule?.gold ?? 5}/{athleticsPointsRule?.silver ?? 3}/{athleticsPointsRule?.bronze ?? 1} Pts)</th>
+                    <th className="py-2.5 px-3 text-center">Team Sports Medals ({teamPointsRule?.gold ?? 7}/{teamPointsRule?.silver ?? 5} Pts)</th>
                     <th className="py-2.5 px-3 text-center">Total Medals</th>
                     <th className="py-2.5 px-3.5 text-right">Championship Score</th>
                     <th className="py-2.5 px-3 text-center w-24">Action</th>
@@ -669,10 +701,10 @@ export default function ScheduleLeaderboardTab() {
               <span>Showing rankings for {selectedScoreDay === 'overall' ? 'All 3 Championship Days' : `Day ${selectedScoreDay} Fixtures`}</span>
               <div className="flex items-center gap-3">
                 <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-amber-500"></span> Gold: {athleticsPointsRule.gold || 5} / {teamPointsRule.gold || 8} pts
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span> Gold: {athleticsPointsRule?.gold ?? 5} / {teamPointsRule?.gold ?? 7} pts
                 </span>
                 <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 rounded-full bg-slate-400"></span> Silver: {athleticsPointsRule.silver || 3} / {teamPointsRule.silver || 5} pts
+                  <span className="w-2 h-2 rounded-full bg-slate-400"></span> Silver: {athleticsPointsRule?.silver ?? 3} / {teamPointsRule?.silver ?? 5} pts
                 </span>
               </div>
             </div>
@@ -796,8 +828,8 @@ export default function ScheduleLeaderboardTab() {
                                   : 'bg-emerald-50 text-emerald-800 border-emerald-200'
                               }`}
                             >
-                              <option value="athletics">🏃 Indiv (5/3/1 Pts)</option>
-                              <option value="team">⚽ Team (8/5 Pts)</option>
+                              <option value="athletics">🏃 Indiv ({athleticsPointsRule?.gold ?? 5}/{athleticsPointsRule?.silver ?? 3}/{athleticsPointsRule?.bronze ?? 1} Pts)</option>
+                              <option value="team">⚽ Team ({teamPointsRule?.gold ?? 7}/{teamPointsRule?.silver ?? 5} Pts)</option>
                             </select>
                           </td>
 
@@ -806,7 +838,8 @@ export default function ScheduleLeaderboardTab() {
                             <select
                               value={currentWinner.first || ''}
                               onChange={(e) => {
-                                assignSportWinner(sport.id, { first: e.target.value });
+                                const targetDay = currentWinner.day || (sport.time?.match(/Day\s*(\d+)/i) ? parseInt(sport.time.match(/Day\s*(\d+)/i)[1], 10) : 1);
+                                assignSportWinner(sport.id, { first: e.target.value, day: targetDay });
                                 setToastMsg(`Updated 1st place for ${sport.title}`);
                                 setTimeout(() => setToastMsg(''), 1800);
                               }}
@@ -824,7 +857,8 @@ export default function ScheduleLeaderboardTab() {
                             <select
                               value={currentWinner.second || ''}
                               onChange={(e) => {
-                                assignSportWinner(sport.id, { second: e.target.value });
+                                const targetDay = currentWinner.day || (sport.time?.match(/Day\s*(\d+)/i) ? parseInt(sport.time.match(/Day\s*(\d+)/i)[1], 10) : 1);
+                                assignSportWinner(sport.id, { second: e.target.value, day: targetDay });
                                 setToastMsg(`Updated 2nd place for ${sport.title}`);
                                 setTimeout(() => setToastMsg(''), 1800);
                               }}
@@ -847,7 +881,8 @@ export default function ScheduleLeaderboardTab() {
                               <select
                                 value={currentWinner.third || ''}
                                 onChange={(e) => {
-                                  assignSportWinner(sport.id, { third: e.target.value });
+                                  const targetDay = currentWinner.day || (sport.time?.match(/Day\s*(\d+)/i) ? parseInt(sport.time.match(/Day\s*(\d+)/i)[1], 10) : 1);
+                                  assignSportWinner(sport.id, { third: e.target.value, day: targetDay });
                                   setToastMsg(`Updated 3rd place for ${sport.title}`);
                                   setTimeout(() => setToastMsg(''), 1800);
                                 }}
@@ -871,9 +906,21 @@ export default function ScheduleLeaderboardTab() {
                               <Printer size={11} className="text-amber-600" />
                               <span>Results Roster</span>
                             </button>
-                            <span className="px-2 py-0.5 rounded-md text-[0.65rem] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                              Day {currentWinner.day || 1}
-                            </span>
+                            <select
+                              value={currentWinner.day || 1}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                assignSportWinner(sport.id, { day: val });
+                                setToastMsg(`Assigned ${sport.title} to Day ${val}`);
+                                setTimeout(() => setToastMsg(''), 1800);
+                              }}
+                              className="px-2 py-0.5 rounded-md text-[0.65rem] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 cursor-pointer focus:outline-none hover:bg-slate-200 transition"
+                              title="Assign Scheduled Day for this Event"
+                            >
+                              {(dayNumbers.length > 0 ? dayNumbers : [1, 2, 3]).map(d => (
+                                <option key={d} value={d}>Day {d}</option>
+                              ))}
+                            </select>
                           </td>
                         </tr>
                       );
@@ -957,6 +1004,15 @@ export default function ScheduleLeaderboardTab() {
                   Remove Day
                 </button>
               )}
+
+              <button
+                onClick={handleResetScheduleToDefault}
+                className="px-2.5 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold rounded-lg flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                title="Restore Official 3-Day Championship Match Timetable"
+              >
+                <RotateCcw size={12} className="text-blue-600" />
+                <span>Reset Timetable</span>
+              </button>
             </div>
           </div>
 
@@ -1045,7 +1101,17 @@ export default function ScheduleLeaderboardTab() {
                           </td>
 
                           {/* Actions */}
-                          <td className="py-2 px-3.5 text-right">
+                          <td className="py-2 px-3.5 text-right whitespace-nowrap space-x-1">
+                            <button
+                              onClick={() => {
+                                setEditingFixture({ ...fixture, day: selectedFixtureDay });
+                                setShowEditFixtureModal(true);
+                              }}
+                              className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition cursor-pointer"
+                              title="Edit Fixture Match"
+                            >
+                              <Edit2 size={13} />
+                            </button>
                             <button
                               onClick={() => {
                                 if (confirm(`Delete fixture "${fixture.title}"?`)) {
@@ -1258,7 +1324,7 @@ export default function ScheduleLeaderboardTab() {
                     <input
                       type="number"
                       min="1"
-                      value={teamPointsRule.gold || 8}
+                      value={teamPointsRule?.gold ?? 7}
                       onChange={(e) => {
                         const val = Number(e.target.value);
                         updatePointsRule('team', { gold: val });
@@ -1280,7 +1346,7 @@ export default function ScheduleLeaderboardTab() {
                           setTimeout(() => setToastMsg(''), 1800);
                         }}
                         className={`px-2 py-0.5 rounded-md text-[0.65rem] font-black transition cursor-pointer ${
-                          (teamPointsRule.gold || 8) === val
+                          (teamPointsRule?.gold ?? 7) === val
                             ? 'bg-amber-600 text-white shadow-2xs ring-1 ring-amber-500'
                             : 'bg-white hover:bg-amber-100 text-amber-900 border border-amber-300'
                         }`}
@@ -1451,6 +1517,124 @@ export default function ScheduleLeaderboardTab() {
         </div>
       )}
 
+      {/* 4.B. MODAL: EDIT FIXTURE MATCH */}
+      {showEditFixtureModal && editingFixture && (
+        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
+          <div className="bg-white rounded-2xl p-4 sm:p-5 max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl space-y-3.5 border border-slate-200">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h4 className="font-black text-slate-900 text-sm flex items-center gap-2">
+                <Edit2 className="text-blue-600" size={16} />
+                <span>Edit Match Fixture (Day {editingFixture.day || selectedFixtureDay})</span>
+              </h4>
+              <button 
+                onClick={() => {
+                  setShowEditFixtureModal(false);
+                  setEditingFixture(null);
+                }} 
+                className="text-slate-400 hover:text-slate-700 p-1 cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditFixtureSubmit} className="space-y-3 text-xs font-semibold">
+              <div>
+                <label className="block text-[0.65rem] uppercase font-black text-slate-600 mb-1">
+                  Match Title & Competitors *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Football Semifinals: CSE vs EE"
+                  value={editingFixture.title || ''}
+                  onChange={(e) => setEditingFixture({ ...editingFixture, title: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-bold text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[0.65rem] uppercase font-black text-slate-600 mb-1">
+                    Scheduled Time *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 02:30 PM"
+                    value={editingFixture.time || ''}
+                    onChange={(e) => setEditingFixture({ ...editingFixture, time: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-bold text-xs focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[0.65rem] uppercase font-black text-slate-600 mb-1">
+                    Status
+                  </label>
+                  <select
+                    value={editingFixture.status || 'upcoming'}
+                    onChange={(e) => setEditingFixture({ ...editingFixture, status: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-bold text-xs focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="upcoming">Upcoming</option>
+                    <option value="live">🔴 Live Now</option>
+                    <option value="completed">Completed</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[0.65rem] uppercase font-black text-slate-600 mb-1">
+                  Day of Festival *
+                </label>
+                <select
+                  value={editingFixture.day || selectedFixtureDay}
+                  onChange={(e) => setEditingFixture({ ...editingFixture, day: Number(e.target.value) })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-bold text-xs focus:outline-none focus:border-blue-500"
+                >
+                  {dayNumbers.map(d => (
+                    <option key={d} value={d}>Day {d}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[0.65rem] uppercase font-black text-slate-600 mb-1">
+                  Venue / Ground Location *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. GCEK Main Football Oval"
+                  value={editingFixture.location || ''}
+                  onChange={(e) => setEditingFixture({ ...editingFixture, location: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-bold text-xs focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditFixtureModal(false);
+                    setEditingFixture(null);
+                  }}
+                  className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-bold text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-black text-xs shadow-xs cursor-pointer"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* MODAL: EDIT BRANCH POINTS & MEDALS (DIRECT CRUD & INSTANT CLOUD SYNC) */}
       {showPointsModal && editingBranch && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50 animate-in fade-in">
@@ -1535,7 +1719,7 @@ export default function ScheduleLeaderboardTab() {
               {/* Team Medals */}
               <div>
                 <label className="block text-[0.68rem] uppercase font-black text-slate-700 mb-1.5">
-                  ⚽ Team Sports Medals ({teamPointsRule.gold || 8}/{teamPointsRule.silver || 5} Pts)
+                  ⚽ Team Sports Medals ({teamPointsRule?.gold ?? 7}/{teamPointsRule?.silver ?? 5} Pts)
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <div>

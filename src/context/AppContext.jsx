@@ -76,7 +76,9 @@ function normalizeDignitariesStructure(parsed) {
  */
 export function normalizeEquipmentItem(item) {
   if (!item || typeof item !== 'object') return null;
-  const totalQty = Number(item.totalQty ?? item.total_qty ?? item.qty ?? 0);
+  const rawQty = item.totalQty !== undefined ? item.totalQty : (item.total_qty !== undefined ? item.total_qty : item.qty);
+  const numQty = Number(rawQty);
+  const totalQty = isNaN(numQty) ? 1 : Math.max(0, numQty);
   return {
     id: String(item.id || `eq-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`),
     name: String(item.name || '').trim(),
@@ -211,6 +213,133 @@ export function safeParseEvents(events) {
   return [];
 }
 
+/**
+ * Normalizes a Sport Discipline object ensuring all required properties (id, category,
+ * categoryName, division, divisionName, rules, venue, time, etc.) are present and valid.
+ */
+export function normalizeSport(s) {
+  if (!s || typeof s !== 'object') return null;
+  const initMatch = initialSports.find(init => 
+    (init.id && s.id && init.id === s.id) || 
+    (init.title && s.title && init.title.toLowerCase().trim() === s.title.toLowerCase().trim())
+  );
+
+  const division = s.division || (initMatch ? initMatch.division : 'both');
+  let divisionName = s.divisionName;
+  if (!divisionName) {
+    if (division === 'boys') divisionName = 'Boys Division Only';
+    else if (division === 'girls') divisionName = 'Girls Division Only';
+    else divisionName = 'Boys & Girls Divisions';
+  }
+
+  const category = s.category || (initMatch ? initMatch.category : 'athletics');
+  let categoryName = s.categoryName;
+  if (!categoryName) {
+    if (category === 'team') categoryName = 'Team Sport';
+    else if (category === 'indoor') categoryName = 'Indoor Sport';
+    else categoryName = 'Track Event';
+  }
+
+  const rules = Array.isArray(s.rules) && s.rules.length > 0 
+    ? s.rules 
+    : (initMatch?.rules || ['Standard competition rules apply.', 'Athletic jersey and shoes mandatory.']);
+
+  return {
+    ...initMatch,
+    ...s,
+    id: String(s.id || (initMatch ? initMatch.id : `sport-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`)),
+    title: String(s.title || (initMatch ? initMatch.title : 'Sport Event')).trim(),
+    category,
+    categoryName,
+    division,
+    divisionName,
+    image: sanitizePhotoUrl(s.image, initMatch?.image || '/assets/images/hero_sports_banner_1786976961106.png'),
+    venue: String(s.venue || initMatch?.venue || 'GCEK Synthetic Athletic Track').trim(),
+    time: String(s.time || initMatch?.time || 'Day 1 - 09:00 AM').trim(),
+    coordinator: String(s.coordinator || initMatch?.coordinator || 'Athletic Board & Student Secretary').trim(),
+    desc: String(s.desc || initMatch?.desc || '').trim(),
+    rules
+  };
+}
+
+/**
+ * Normalizes an array of sports disciplines, ensuring canonical items (like Tug of War)
+ * are always retained and never lost across device syncs.
+ */
+export function normalizeSportsList(list) {
+  if (!Array.isArray(list) || list.length === 0) {
+    return initialSports.map(normalizeSport).filter(Boolean);
+  }
+  let normalized = list.map(normalizeSport).filter(Boolean);
+  initialSports.forEach(initSport => {
+    const exists = normalized.some(s => 
+      (s.id && initSport.id && s.id === initSport.id) || 
+      (s.title && initSport.title && s.title.toLowerCase().trim() === initSport.title.toLowerCase().trim())
+    );
+    if (!exists) {
+      normalized.push(normalizeSport(initSport));
+    }
+  });
+  return normalized;
+}
+
+/**
+ * Normalizes a tournament schedule fixture ensuring unique id, valid status, and both
+ * statusLabel (camelCase) and status_label (snake_case) keys for seamless UI and DB compatibility.
+ */
+export function normalizeFixture(fixture, dayNum = 1) {
+  if (!fixture || typeof fixture !== 'object') return null;
+  const dNum = Number(fixture.day || dayNum || 1);
+  const id = String(fixture.id || `sch-${dNum}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`);
+  const status = fixture.status || 'upcoming';
+  let statusLabel = fixture.statusLabel || fixture.status_label;
+  if (!statusLabel) {
+    if (status === 'live') statusLabel = 'LIVE NOW';
+    else if (status === 'completed') statusLabel = 'Completed';
+    else statusLabel = 'Upcoming';
+  }
+  return {
+    ...fixture,
+    id,
+    day: dNum,
+    time: String(fixture.time || '09:00 AM').trim(),
+    title: String(fixture.title || 'Championship Match').trim(),
+    location: String(fixture.location || 'GCEK Main Ground').trim(),
+    status,
+    statusLabel,
+    status_label: statusLabel,
+    created_at: fixture.created_at || new Date().toISOString()
+  };
+}
+
+/**
+ * Normalizes the full festival schedule map ensuring each day's fixtures are clean and days 1-3 exist.
+ */
+export function normalizeScheduleStructure(sched) {
+  if (!sched || typeof sched !== 'object') {
+    const res = {};
+    for (const [day, list] of Object.entries(initialSchedule)) {
+      res[day] = (list || []).map((f, i) => normalizeFixture({ ...f, id: f.id || `sch-${day}-${i + 1}` }, Number(day)));
+    }
+    return res;
+  }
+  const res = {};
+  for (const [day, list] of Object.entries(sched)) {
+    const dNum = Number(day);
+    if (Array.isArray(list)) {
+      res[day] = list.map((f, i) => normalizeFixture({ ...f, id: f.id || `sch-${day}-${i + 1}` }, dNum)).filter(Boolean);
+    } else {
+      res[day] = [];
+    }
+  }
+  [1, 2, 3].forEach(d => {
+    if (!res[d]) {
+      res[d] = (initialSchedule[d] || []).map((f, i) => normalizeFixture({ ...f, id: f.id || `sch-${d}-${i + 1}` }, d));
+    }
+  });
+  return res;
+}
+
 export const DEFAULT_TEAM_SQUAD_SIZES = {
   'Volleyball Championship': 12,
   'Badminton Championship': 12,
@@ -223,6 +352,59 @@ export const DEFAULT_TEAM_SQUAD_SIZES = {
   'Chess Rapid & Blitz Tournament': 4,
   '4 x 400m Relay Race': 4
 };
+
+export const DEFAULT_EQUIPMENT_ITEMS = [
+  { id: 'eq-1', name: 'Cricket Tournament Bats', category: 'Cricket', totalQty: 12, total_qty: 12, condition: 'Good Condition', location: 'Main Sports Store', notes: 'SS English Willow' },
+  { id: 'eq-2', name: 'Cricket Leather Balls', category: 'Cricket', totalQty: 30, total_qty: 30, condition: 'New Pack', location: 'Store Box 2', notes: 'SG Red Leather' },
+  { id: 'eq-3', name: 'Match Footballs (Nivia)', category: 'Football', totalQty: 15, total_qty: 15, condition: 'Good Condition', location: 'Main Sports Store', notes: 'Size 5 Match Balls' },
+  { id: 'eq-4', name: 'Volleyballs (Mikasa)', category: 'Volleyball', totalQty: 10, total_qty: 10, condition: 'Good Condition', location: 'Store Box 1', notes: 'Tournament Approved' },
+  { id: 'eq-5', name: 'Badminton Rackets', category: 'Badminton', totalQty: 16, total_qty: 16, condition: 'Good Condition', location: 'Indoor Store', notes: 'Yonex Graphite' },
+  { id: 'eq-6', name: 'Mavis 350 Shuttlecocks', category: 'Badminton', totalQty: 40, total_qty: 40, condition: 'New Pack', location: 'Indoor Store', notes: 'Nylon Shuttles' },
+  { id: 'eq-7', name: 'Chess Wooden Sets', category: 'Indoor Games', totalQty: 8, total_qty: 8, condition: 'Good Condition', location: 'Indoor Hall', notes: 'Tournament Boards' }
+];
+
+export const DEFAULT_EQUIPMENT_LOGS = [
+  {
+    id: 'iss-101',
+    equipmentId: 'eq-1',
+    equipment_id: 'eq-1',
+    equipmentName: 'Cricket Tournament Bats',
+    equipment_name: 'Cricket Tournament Bats',
+    borrowerName: 'Swagat Parida',
+    borrower_name: 'Swagat Parida',
+    rollNo: '2201105012',
+    roll_no: '2201105012',
+    branch: 'CSE',
+    qty: 2,
+    status: 'issued',
+    issueDate: '30 Aug 2026, 09:30 AM',
+    issue_date: '30 Aug 2026, 09:30 AM',
+    returnDate: null,
+    return_date: null,
+    returnCondition: null,
+    notes: 'Inter-branch practice session'
+  },
+  {
+    id: 'iss-102',
+    equipmentId: 'eq-3',
+    equipment_id: 'eq-3',
+    equipmentName: 'Match Footballs (Nivia)',
+    equipment_name: 'Match Footballs (Nivia)',
+    borrowerName: 'Priyanka Sahoo',
+    borrower_name: 'Priyanka Sahoo',
+    rollNo: '2201105045',
+    roll_no: '2201105045',
+    branch: 'EE',
+    qty: 1,
+    status: 'returned',
+    issueDate: '29 Aug 2026, 02:00 PM',
+    issue_date: '29 Aug 2026, 02:00 PM',
+    returnDate: '29 Aug 2026, 05:30 PM',
+    return_date: '29 Aug 2026, 05:30 PM',
+    returnCondition: 'Good Condition',
+    notes: 'Girls Football semi-finals'
+  }
+];
 
 export function AppProvider({ children }) {
   // Website General Settings State
@@ -258,35 +440,30 @@ export function AppProvider({ children }) {
     const saved = localStorage.getItem('aahwan_sports') || localStorage.getItem('AWAHAAN_sports');
     if (saved) {
       try {
-        let parsed = JSON.parse(saved);
-        // Ensure canonical sports like Tug of War exist in local state
-        initialSports.forEach(initSport => {
-          const exists = parsed.some(s => s.id === initSport.id || (s.title && s.title.toLowerCase() === initSport.title.toLowerCase()));
-          if (!exists) {
-            parsed.push(initSport);
-          }
-        });
-        // Sync default division rules for the canonical roster
-        parsed = parsed.map(s => {
-          const initMatch = initialSports.find(init => init.id === s.id || (init.title && init.title.toLowerCase() === (s.title || '').toLowerCase()));
-          return {
-            ...s,
-            division: s.division || (initMatch ? initMatch.division : 'both'),
-            divisionName: s.divisionName || (initMatch ? initMatch.divisionName : 'Boys & Girls Divisions'),
-            image: sanitizePhotoUrl(s.image, '/assets/images/hero_sports_banner_1786976961106.png')
-          };
-        });
-        return parsed;
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return normalizeSportsList(parsed);
+        }
       } catch (e) {
         console.warn('Failed to parse sports:', e);
       }
     }
-    return initialSports;
+    return normalizeSportsList(initialSports);
   });
 
   const [schedule, setSchedule] = useState(() => {
     const saved = localStorage.getItem('aahwan_schedule') || localStorage.getItem('AWAHAAN_schedule');
-    return saved ? JSON.parse(saved) : initialSchedule;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return normalizeScheduleStructure(parsed);
+        }
+      } catch (e) {
+        console.warn('Failed to parse schedule:', e);
+      }
+    }
+    return normalizeScheduleStructure(initialSchedule);
   });
 
   const [leaderboard, setLeaderboard] = useState(() => {
@@ -296,10 +473,10 @@ export function AppProvider({ children }) {
 
   // Custom Point Weighting Rules (Admin Managed)
   // Athletics: 1st=5, 2nd=3, 3rd=1
-  // Team Games: 1st=8, 2nd=5, 3rd=0 (No 3rd place points)
+  // Team Games: 1st=7, 2nd=5, 3rd=0 (No 3rd place points)
   const [teamPointsRule, setTeamPointsRule] = useState(() => {
     const saved = localStorage.getItem('aahwan_team_points_rule');
-    return saved ? JSON.parse(saved) : { gold: 8, silver: 5, bronze: 0 };
+    return saved ? JSON.parse(saved) : { gold: 7, silver: 5, bronze: 0 };
   });
 
   const [athleticsPointsRule, setAthleticsPointsRule] = useState(() => {
@@ -465,20 +642,15 @@ export function AppProvider({ children }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed.map(normalizeEquipmentItem).filter(Boolean);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const norm = parsed.map(normalizeEquipmentItem).filter(Boolean);
+          if (norm.length > 0) return norm;
+        }
       } catch (e) {
         console.warn('Failed to parse cached equipment:', e);
       }
     }
-    return [
-      { id: 'eq-1', name: 'Cricket Tournament Bats', category: 'Cricket', totalQty: 12, condition: 'Good Condition', location: 'Main Sports Store', notes: 'SS English Willow' },
-      { id: 'eq-2', name: 'Cricket Leather Balls', category: 'Cricket', totalQty: 30, condition: 'New Pack', location: 'Store Box 2', notes: 'SG Red Leather' },
-      { id: 'eq-3', name: 'Match Footballs (Nivia)', category: 'Football', totalQty: 15, condition: 'Good Condition', location: 'Main Sports Store', notes: 'Size 5 Match Balls' },
-      { id: 'eq-4', name: 'Volleyballs (Mikasa)', category: 'Volleyball', totalQty: 10, condition: 'Good Condition', location: 'Store Box 1', notes: 'Tournament Approved' },
-      { id: 'eq-5', name: 'Badminton Rackets', category: 'Badminton', totalQty: 16, condition: 'Good Condition', location: 'Indoor Store', notes: 'Yonex Graphite' },
-      { id: 'eq-6', name: 'Mavis 350 Shuttlecocks', category: 'Badminton', totalQty: 40, condition: 'New Pack', location: 'Indoor Store', notes: 'Nylon Shuttles' },
-      { id: 'eq-7', name: 'Chess Wooden Sets', category: 'Indoor Games', totalQty: 8, condition: 'Good Condition', location: 'Indoor Hall', notes: 'Tournament Boards' }
-    ].map(normalizeEquipmentItem);
+    return DEFAULT_EQUIPMENT_ITEMS.map(normalizeEquipmentItem);
   });
 
   const [equipmentLogs, setEquipmentLogs] = useState(() => {
@@ -486,41 +658,15 @@ export function AppProvider({ children }) {
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed.map(normalizeEquipmentLog).filter(Boolean);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const norm = parsed.map(normalizeEquipmentLog).filter(Boolean);
+          if (norm.length > 0) return norm;
+        }
       } catch (e) {
         console.warn('Failed to parse cached equipment logs:', e);
       }
     }
-    return [
-      {
-        id: 'iss-101',
-        equipmentId: 'eq-1',
-        equipmentName: 'Cricket Tournament Bats',
-        borrowerName: 'Swagat Parida',
-        rollNo: '2201105012',
-        branch: 'CSE',
-        qty: 2,
-        status: 'issued',
-        issueDate: '2026-08-30 09:30 AM',
-        returnDate: null,
-        returnCondition: null,
-        notes: 'Inter-branch practice session'
-      },
-      {
-        id: 'iss-102',
-        equipmentId: 'eq-3',
-        equipmentName: 'Match Footballs (Nivia)',
-        borrowerName: 'Priyanka Sahoo',
-        rollNo: '2201105045',
-        branch: 'EE',
-        qty: 1,
-        status: 'returned',
-        issueDate: '2026-08-29 02:00 PM',
-        returnDate: '2026-08-29 05:30 PM',
-        returnCondition: 'Good Condition',
-        notes: 'Girls Football semi-finals'
-      }
-    ].map(normalizeEquipmentLog);
+    return DEFAULT_EQUIPMENT_LOGS.map(normalizeEquipmentLog);
   });
 
   // View Mode State: 'public' | 'admin-login' | 'admin-dashboard'
@@ -590,30 +736,37 @@ export function AppProvider({ children }) {
 
       const payload = {
         ...existingConfig,
-        year: customOverrides.year !== undefined ? customOverrides.year : (existingConfig.year || year),
-        festivalName: customOverrides.festivalName !== undefined ? customOverrides.festivalName : (existingConfig.festivalName || festivalName),
-        collegeName: customOverrides.collegeName !== undefined ? customOverrides.collegeName : (existingConfig.collegeName || collegeName),
-        collegeLocation: customOverrides.collegeLocation !== undefined ? customOverrides.collegeLocation : (existingConfig.collegeLocation || collegeLocation),
-        helplinePhone: customOverrides.helplinePhone !== undefined ? customOverrides.helplinePhone : (existingConfig.helplinePhone || helplinePhone),
-        helplineEmail: customOverrides.helplineEmail !== undefined ? customOverrides.helplineEmail : (existingConfig.helplineEmail || helplineEmail),
-        statSportsCount: customOverrides.statSportsCount !== undefined ? customOverrides.statSportsCount : (existingConfig.statSportsCount || statSportsCount),
-        statAthletesCount: customOverrides.statAthletesCount !== undefined ? customOverrides.statAthletesCount : (existingConfig.statAthletesCount || statAthletesCount),
-        statStreamsCount: customOverrides.statStreamsCount !== undefined ? customOverrides.statStreamsCount : (existingConfig.statStreamsCount || statStreamsCount),
-        statDaysCount: customOverrides.statDaysCount !== undefined ? customOverrides.statDaysCount : (existingConfig.statDaysCount || statDaysCount),
-        sports: customOverrides.sports !== undefined ? customOverrides.sports : (existingConfig.sports || sports),
-        dignitaries: customOverrides.dignitaries !== undefined ? customOverrides.dignitaries : (existingConfig.dignitaries || dignitaries),
-        schedule: customOverrides.schedule !== undefined ? customOverrides.schedule : (existingConfig.schedule || schedule),
-        leaderboard: customOverrides.leaderboard !== undefined ? customOverrides.leaderboard : (existingConfig.leaderboard || leaderboard),
-        galleryPhotos: customOverrides.galleryPhotos !== undefined ? customOverrides.galleryPhotos : (existingConfig.galleryPhotos || galleryPhotos),
-        sportWinners: customOverrides.sportWinners !== undefined ? customOverrides.sportWinners : (existingConfig.sportWinners || sportWinners),
-        dailyMedals: customOverrides.dailyMedals !== undefined ? customOverrides.dailyMedals : (existingConfig.dailyMedals || dailyMedals),
-        teamPointsRule: customOverrides.teamPointsRule !== undefined ? customOverrides.teamPointsRule : (existingConfig.teamPointsRule || teamPointsRule),
-        athleticsPointsRule: customOverrides.athleticsPointsRule !== undefined ? customOverrides.athleticsPointsRule : (existingConfig.athleticsPointsRule || athleticsPointsRule),
-        branchPointsOverride: customOverrides.branchPointsOverride !== undefined ? customOverrides.branchPointsOverride : (existingConfig.branchPointsOverride || branchPointsOverride),
-        equipmentList: customOverrides.equipmentList !== undefined ? customOverrides.equipmentList : (existingConfig.equipmentList || equipmentList),
-        equipmentLogs: customOverrides.equipmentLogs !== undefined ? customOverrides.equipmentLogs : (existingConfig.equipmentLogs || equipmentLogs),
-        registrations: customOverrides.registrations !== undefined ? customOverrides.registrations : (existingConfig.registrations || registrations),
-        teamSquadSizes: customOverrides.teamSquadSizes !== undefined ? customOverrides.teamSquadSizes : (existingConfig.teamSquadSizes || teamSquadSizes)
+        year: customOverrides.year !== undefined ? customOverrides.year : year,
+        festivalName: customOverrides.festivalName !== undefined ? customOverrides.festivalName : festivalName,
+        collegeName: customOverrides.collegeName !== undefined ? customOverrides.collegeName : collegeName,
+        collegeLocation: customOverrides.collegeLocation !== undefined ? customOverrides.collegeLocation : collegeLocation,
+        helplinePhone: customOverrides.helplinePhone !== undefined ? customOverrides.helplinePhone : helplinePhone,
+        helplineEmail: customOverrides.helplineEmail !== undefined ? customOverrides.helplineEmail : helplineEmail,
+        statSportsCount: customOverrides.statSportsCount !== undefined ? customOverrides.statSportsCount : statSportsCount,
+        statAthletesCount: customOverrides.statAthletesCount !== undefined ? customOverrides.statAthletesCount : statAthletesCount,
+        statStreamsCount: customOverrides.statStreamsCount !== undefined ? customOverrides.statStreamsCount : statStreamsCount,
+        sports: customOverrides.sports !== undefined 
+          ? normalizeSportsList(customOverrides.sports) 
+          : (sports && sports.length > 0 ? normalizeSportsList(sports) : (existingConfig.sports && existingConfig.sports.length > 0 ? normalizeSportsList(existingConfig.sports) : normalizeSportsList(initialSports))),
+        dignitaries: customOverrides.dignitaries !== undefined ? customOverrides.dignitaries : dignitaries,
+        schedule: customOverrides.schedule !== undefined 
+          ? normalizeScheduleStructure(customOverrides.schedule) 
+          : (schedule && Object.keys(schedule).length > 0 ? normalizeScheduleStructure(schedule) : (existingConfig.schedule ? normalizeScheduleStructure(existingConfig.schedule) : normalizeScheduleStructure(initialSchedule))),
+        leaderboard: customOverrides.leaderboard !== undefined ? customOverrides.leaderboard : leaderboard,
+        galleryPhotos: customOverrides.galleryPhotos !== undefined ? customOverrides.galleryPhotos : galleryPhotos,
+        sportWinners: customOverrides.sportWinners !== undefined ? customOverrides.sportWinners : sportWinners,
+        dailyMedals: customOverrides.dailyMedals !== undefined ? customOverrides.dailyMedals : dailyMedals,
+        teamPointsRule: customOverrides.teamPointsRule !== undefined ? customOverrides.teamPointsRule : teamPointsRule,
+        athleticsPointsRule: customOverrides.athleticsPointsRule !== undefined ? customOverrides.athleticsPointsRule : athleticsPointsRule,
+        branchPointsOverride: customOverrides.branchPointsOverride !== undefined ? customOverrides.branchPointsOverride : branchPointsOverride,
+        equipmentList: customOverrides.equipmentList !== undefined 
+          ? customOverrides.equipmentList 
+          : (equipmentList && equipmentList.length > 0 ? equipmentList : (existingConfig.equipmentList && existingConfig.equipmentList.length > 0 ? existingConfig.equipmentList : DEFAULT_EQUIPMENT_ITEMS.map(normalizeEquipmentItem))),
+        equipmentLogs: customOverrides.equipmentLogs !== undefined 
+          ? customOverrides.equipmentLogs 
+          : (equipmentLogs && equipmentLogs.length > 0 ? equipmentLogs : (existingConfig.equipmentLogs && existingConfig.equipmentLogs.length > 0 ? existingConfig.equipmentLogs : DEFAULT_EQUIPMENT_LOGS.map(normalizeEquipmentLog))),
+        registrations: customOverrides.registrations !== undefined ? customOverrides.registrations : registrations,
+        teamSquadSizes: customOverrides.teamSquadSizes !== undefined ? customOverrides.teamSquadSizes : teamSquadSizes
       };
 
       const { error } = await supabase.from('site_settings').upsert({
@@ -669,11 +822,11 @@ export function AppProvider({ children }) {
         if (cfg.statSportsCount) { setStatSportsCount(cfg.statSportsCount); localStorage.setItem('aahwan_stat_sports', cfg.statSportsCount); localStorage.setItem('AWAHAAN_stat_sports', cfg.statSportsCount); }
         if (cfg.statAthletesCount) { setStatAthletesCount(cfg.statAthletesCount); localStorage.setItem('aahwan_stat_athletes', cfg.statAthletesCount); localStorage.setItem('AWAHAAN_stat_athletes', cfg.statAthletesCount); }
         if (cfg.statStreamsCount) { setStatStreamsCount(cfg.statStreamsCount); localStorage.setItem('aahwan_stat_streams', cfg.statStreamsCount); localStorage.setItem('AWAHAAN_stat_streams', cfg.statStreamsCount); }
-        if (cfg.statDaysCount) { setStatDaysCount(cfg.statDaysCount); localStorage.setItem('aahwan_stat_days', cfg.statDaysCount); localStorage.setItem('AWAHAAN_stat_days', cfg.statDaysCount); }
         if (cfg.sports && Array.isArray(cfg.sports) && cfg.sports.length > 0) {
-          setSports(cfg.sports);
-          localStorage.setItem('aahwan_sports', JSON.stringify(cfg.sports));
-          localStorage.setItem('AWAHAAN_sports', JSON.stringify(cfg.sports));
+          const normSports = normalizeSportsList(cfg.sports);
+          setSports(normSports);
+          localStorage.setItem('aahwan_sports', JSON.stringify(normSports));
+          localStorage.setItem('AWAHAAN_sports', JSON.stringify(normSports));
         }
         if (cfg.dignitaries) {
           const normalized = normalizeDignitariesStructure(cfg.dignitaries);
@@ -681,10 +834,11 @@ export function AppProvider({ children }) {
           localStorage.setItem('aahwan_dignitaries', JSON.stringify(normalized));
           localStorage.setItem('AWAHAAN_dignitaries', JSON.stringify(normalized));
         }
-        if (cfg.schedule) {
-          setSchedule(cfg.schedule);
-          localStorage.setItem('aahwan_schedule', JSON.stringify(cfg.schedule));
-          localStorage.setItem('AWAHAAN_schedule', JSON.stringify(cfg.schedule));
+        if (cfg.schedule && typeof cfg.schedule === 'object') {
+          const normSchedule = normalizeScheduleStructure(cfg.schedule);
+          setSchedule(normSchedule);
+          localStorage.setItem('aahwan_schedule', JSON.stringify(normSchedule));
+          localStorage.setItem('AWAHAAN_schedule', JSON.stringify(normSchedule));
         }
         if (cfg.leaderboard) {
           setLeaderboard(cfg.leaderboard);
@@ -721,17 +875,21 @@ export function AppProvider({ children }) {
           localStorage.setItem('aahwan_branch_points', JSON.stringify(cfg.branchPointsOverride));
           localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(cfg.branchPointsOverride));
         }
-        if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
+        if (cfg.equipmentList && Array.isArray(cfg.equipmentList) && cfg.equipmentList.length > 0) {
           const normalized = cfg.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
-          setEquipmentList(normalized);
-          localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
-          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+          if (normalized.length > 0) {
+            setEquipmentList(normalized);
+            localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+          }
         }
-        if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
+        if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs) && cfg.equipmentLogs.length > 0) {
           const normalized = cfg.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
-          setEquipmentLogs(normalized);
-          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
-          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+          if (normalized.length > 0) {
+            setEquipmentLogs(normalized);
+            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+          }
         }
         if (cfg.teamSquadSizes && typeof cfg.teamSquadSizes === 'object') {
           const mergedSizes = { ...DEFAULT_TEAM_SQUAD_SIZES, ...cfg.teamSquadSizes };
@@ -834,18 +992,22 @@ export function AppProvider({ children }) {
           setEquipmentList(normalized);
           localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
           localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
-        } else if (cloudConfig?.equipmentList && Array.isArray(cloudConfig.equipmentList)) {
+        } else if (cloudConfig?.equipmentList && Array.isArray(cloudConfig.equipmentList) && cloudConfig.equipmentList.length > 0) {
           const normalized = cloudConfig.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
-          setEquipmentList(normalized);
-          localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
-          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+          if (normalized.length > 0) {
+            setEquipmentList(normalized);
+            localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+          }
         }
       } catch (e) {
-        if (cloudConfig?.equipmentList && Array.isArray(cloudConfig.equipmentList)) {
+        if (cloudConfig?.equipmentList && Array.isArray(cloudConfig.equipmentList) && cloudConfig.equipmentList.length > 0) {
           const normalized = cloudConfig.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
-          setEquipmentList(normalized);
-          localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
-          localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+          if (normalized.length > 0) {
+            setEquipmentList(normalized);
+            localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+          }
         }
       }
 
@@ -858,21 +1020,27 @@ export function AppProvider({ children }) {
 
         if (!logErr && Array.isArray(logRows) && logRows.length > 0) {
           const normalized = logRows.map(normalizeEquipmentLog).filter(Boolean);
-          setEquipmentLogs(normalized);
-          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
-          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
-        } else if (cloudConfig?.equipmentLogs && Array.isArray(cloudConfig.equipmentLogs)) {
+          if (normalized.length > 0) {
+            setEquipmentLogs(normalized);
+            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+          }
+        } else if (cloudConfig?.equipmentLogs && Array.isArray(cloudConfig.equipmentLogs) && cloudConfig.equipmentLogs.length > 0) {
           const normalized = cloudConfig.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
-          setEquipmentLogs(normalized);
-          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
-          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+          if (normalized.length > 0) {
+            setEquipmentLogs(normalized);
+            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+          }
         }
       } catch (e) {
-        if (cloudConfig?.equipmentLogs && Array.isArray(cloudConfig.equipmentLogs)) {
+        if (cloudConfig?.equipmentLogs && Array.isArray(cloudConfig.equipmentLogs) && cloudConfig.equipmentLogs.length > 0) {
           const normalized = cloudConfig.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
-          setEquipmentLogs(normalized);
-          localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
-          localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+          if (normalized.length > 0) {
+            setEquipmentLogs(normalized);
+            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+          }
         }
       }
 
@@ -925,17 +1093,34 @@ export function AppProvider({ children }) {
           if (cfg.statSportsCount) setStatSportsCount(cfg.statSportsCount);
           if (cfg.statAthletesCount) setStatAthletesCount(cfg.statAthletesCount);
           if (cfg.statStreamsCount) setStatStreamsCount(cfg.statStreamsCount);
-          if (cfg.statDaysCount) setStatDaysCount(cfg.statDaysCount);
-          if (cfg.sports && Array.isArray(cfg.sports)) setSports(cfg.sports);
+          if (cfg.sports && Array.isArray(cfg.sports) && cfg.sports.length > 0) {
+            const normSports = normalizeSportsList(cfg.sports);
+            setSports(normSports);
+            localStorage.setItem('aahwan_sports', JSON.stringify(normSports));
+            localStorage.setItem('AWAHAAN_sports', JSON.stringify(normSports));
+          }
           if (cfg.dignitaries) {
             const normalized = normalizeDignitariesStructure(cfg.dignitaries);
             setDignitaries(normalized);
             localStorage.setItem('aahwan_dignitaries', JSON.stringify(normalized));
             localStorage.setItem('AWAHAAN_dignitaries', JSON.stringify(normalized));
           }
-          if (cfg.schedule) setSchedule(cfg.schedule);
-          if (cfg.leaderboard) setLeaderboard(cfg.leaderboard);
-          if (cfg.galleryPhotos) setGalleryPhotos(cfg.galleryPhotos);
+          if (cfg.schedule && typeof cfg.schedule === 'object') {
+            const normSchedule = normalizeScheduleStructure(cfg.schedule);
+            setSchedule(normSchedule);
+            localStorage.setItem('aahwan_schedule', JSON.stringify(normSchedule));
+            localStorage.setItem('AWAHAAN_schedule', JSON.stringify(normSchedule));
+          }
+          if (cfg.leaderboard) {
+            setLeaderboard(cfg.leaderboard);
+            localStorage.setItem('aahwan_leaderboard', JSON.stringify(cfg.leaderboard));
+            localStorage.setItem('AWAHAAN_leaderboard', JSON.stringify(cfg.leaderboard));
+          }
+          if (cfg.galleryPhotos) {
+            setGalleryPhotos(cfg.galleryPhotos);
+            localStorage.setItem('aahwan_gallery', JSON.stringify(cfg.galleryPhotos));
+            localStorage.setItem('AWAHAAN_gallery', JSON.stringify(cfg.galleryPhotos));
+          }
           if (cfg.sportWinners) {
             setSportWinners(cfg.sportWinners);
             localStorage.setItem('aahwan_sport_winners', JSON.stringify(cfg.sportWinners));
@@ -961,17 +1146,21 @@ export function AppProvider({ children }) {
             localStorage.setItem('aahwan_branch_points', JSON.stringify(cfg.branchPointsOverride));
             localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(cfg.branchPointsOverride));
           }
-          if (cfg.equipmentList && Array.isArray(cfg.equipmentList)) {
+          if (cfg.equipmentList && Array.isArray(cfg.equipmentList) && cfg.equipmentList.length > 0) {
             const normalized = cfg.equipmentList.map(normalizeEquipmentItem).filter(Boolean);
-            setEquipmentList(normalized);
-            localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
-            localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+            if (normalized.length > 0) {
+              setEquipmentList(normalized);
+              localStorage.setItem('aahwan_equipment', JSON.stringify(normalized));
+              localStorage.setItem('AWAHAAN_equipment', JSON.stringify(normalized));
+            }
           }
-          if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs)) {
+          if (cfg.equipmentLogs && Array.isArray(cfg.equipmentLogs) && cfg.equipmentLogs.length > 0) {
             const normalized = cfg.equipmentLogs.map(normalizeEquipmentLog).filter(Boolean);
-            setEquipmentLogs(normalized);
-            localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
-            localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+            if (normalized.length > 0) {
+              setEquipmentLogs(normalized);
+              localStorage.setItem('aahwan_equipment_logs', JSON.stringify(normalized));
+              localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(normalized));
+            }
           }
           if (cfg.teamSquadSizes && typeof cfg.teamSquadSizes === 'object') {
             const mergedSizes = { ...DEFAULT_TEAM_SQUAD_SIZES, ...cfg.teamSquadSizes };
@@ -1249,7 +1438,7 @@ export function AppProvider({ children }) {
       { code: 'CE', name: 'Civil Engineering' }
     ];
 
-    const teamGoldPts = Number(teamPointsRule?.gold ?? 8);
+    const teamGoldPts = Number(teamPointsRule?.gold ?? 7);
     const teamSilverPts = Number(teamPointsRule?.silver ?? 5);
     const teamBronzePts = Number(teamPointsRule?.bronze ?? 0);
     const athGoldPts = Number(athleticsPointsRule?.gold ?? 5);
@@ -1265,7 +1454,8 @@ export function AppProvider({ children }) {
         if (!winner) return;
 
         // Extract day number (default 1)
-        const eventDay = winner.day || parseInt((sport.time || '').replace(/[^0-9]/g, '')) || 1;
+        const dayMatch = (sport.time || '').match(/Day\s*(\d+)/i);
+        const eventDay = winner.day || (dayMatch ? parseInt(dayMatch[1], 10) : 1);
         if (dayFilter !== 'overall' && parseInt(dayFilter) !== parseInt(eventDay)) return;
 
         const isTeamSport = sport.category === 'team';
@@ -1335,7 +1525,7 @@ export function AppProvider({ children }) {
     setBranchPointsOverride(prev => {
       const next = {
         ...prev,
-        [branchCode]: { ...(prev[branchCode] || {}), ...scoreData, isManual: true }
+        [branchCode]: { ...(prev[branchCode] || {}), ...scoreData, isManual: true, applyAllDays: true }
       };
       localStorage.setItem('aahwan_branch_points', JSON.stringify(next));
       localStorage.setItem('AWAHAAN_branch_points', JSON.stringify(next));
@@ -1364,10 +1554,10 @@ export function AppProvider({ children }) {
 
   const setAllPointsToZero = () => {
     const zeroScores = {
-      CSE: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true },
-      EE: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true },
-      ME: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true },
-      CE: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true }
+      CSE: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true, applyAllDays: true },
+      EE: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true, applyAllDays: true },
+      ME: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true, applyAllDays: true },
+      CE: { totalPoints: 0, athGold: 0, athSilver: 0, athBronze: 0, teamGold: 0, teamSilver: 0, isManual: true, applyAllDays: true }
     };
     setBranchPointsOverride(zeroScores);
     localStorage.setItem('aahwan_branch_points', JSON.stringify(zeroScores));
@@ -1400,7 +1590,11 @@ export function AppProvider({ children }) {
     setDailyMedals(prev => {
       const currentDay = prev[dayNum] || [];
       const updatedDay = currentDay.map(b => b.code === branchCode ? { ...b, ...updatedData } : b);
-      return { ...prev, [dayNum]: updatedDay };
+      const nextMedals = { ...prev, [dayNum]: updatedDay };
+      localStorage.setItem('aahwan_daily_medals', JSON.stringify(nextMedals));
+      localStorage.setItem('AWAHAAN_daily_medals', JSON.stringify(nextMedals));
+      saveToCloud({ dailyMedals: nextMedals });
+      return nextMedals;
     });
   };
 
@@ -1414,46 +1608,118 @@ export function AppProvider({ children }) {
     setGalleryPhotos(prev => prev.filter(g => g.id !== id));
   };
 
-  // Schedule Days Helper Handlers
+  // Schedule Days & Match Fixtures Handlers (Instant Cloud Sync & Guaranteed Normalization)
   const addScheduleDay = () => {
     setSchedule(prev => {
       const dayNumbers = Object.keys(prev).map(Number);
       const nextDay = (dayNumbers.length > 0 ? Math.max(...dayNumbers) : 0) + 1;
-      return {
+      const initialMatch = normalizeFixture({
+        day: nextDay,
+        time: '09:00 AM',
+        title: `Day ${nextDay} Championship Finals`,
+        location: 'Main Stadium Arena',
+        status: 'upcoming',
+        statusLabel: 'Upcoming'
+      }, nextDay);
+
+      const nextSchedule = {
         ...prev,
-        [nextDay]: [
-          {
-            time: '09:00 AM',
-            title: `Day ${nextDay} Championship Finals`,
-            location: 'Main Stadium Arena',
-            status: 'upcoming',
-            statusLabel: 'Upcoming'
-          }
-        ]
+        [nextDay]: [initialMatch]
       };
+      localStorage.setItem('aahwan_schedule', JSON.stringify(nextSchedule));
+      localStorage.setItem('AWAHAAN_schedule', JSON.stringify(nextSchedule));
+      saveToCloud({ schedule: nextSchedule });
+      return nextSchedule;
     });
   };
 
   const removeScheduleDay = (dayNum) => {
     setSchedule(prev => {
-      const nextSched = { ...prev };
-      delete nextSched[dayNum];
-      return nextSched;
+      const nextSchedule = { ...prev };
+      delete nextSchedule[dayNum];
+      localStorage.setItem('aahwan_schedule', JSON.stringify(nextSchedule));
+      localStorage.setItem('AWAHAAN_schedule', JSON.stringify(nextSchedule));
+      saveToCloud({ schedule: nextSchedule });
+      return nextSchedule;
     });
   };
 
   const addFixture = (dayNum, fixture) => {
-    setSchedule(prev => ({
-      ...prev,
-      [dayNum]: [...(prev[dayNum] || []), fixture]
-    }));
+    setSchedule(prev => {
+      const norm = normalizeFixture(fixture, dayNum);
+      const currentList = prev[dayNum] || [];
+      const updatedList = [...currentList, norm];
+      const nextSchedule = { ...prev, [dayNum]: updatedList };
+      localStorage.setItem('aahwan_schedule', JSON.stringify(nextSchedule));
+      localStorage.setItem('AWAHAAN_schedule', JSON.stringify(nextSchedule));
+      saveToCloud({ schedule: nextSchedule });
+      return nextSchedule;
+    });
   };
 
-  const deleteFixture = (dayNum, index) => {
-    setSchedule(prev => ({
-      ...prev,
-      [dayNum]: prev[dayNum].filter((_, i) => i !== index)
-    }));
+  const updateFixture = (dayNum, fixtureId, updatedData) => {
+    setSchedule(prev => {
+      const currentList = prev[dayNum] || [];
+      const updatedList = currentList.map(f => {
+        if (f.id === fixtureId) {
+          return normalizeFixture({ ...f, ...updatedData }, dayNum);
+        }
+        return f;
+      });
+      const nextSchedule = { ...prev, [dayNum]: updatedList };
+      localStorage.setItem('aahwan_schedule', JSON.stringify(nextSchedule));
+      localStorage.setItem('AWAHAAN_schedule', JSON.stringify(nextSchedule));
+      saveToCloud({ schedule: nextSchedule });
+      return nextSchedule;
+    });
+  };
+
+  const updateFixtureStatus = (dayNum, fixtureId, newStatus, statusLabel) => {
+    setSchedule(prev => {
+      const currentList = prev[dayNum] || [];
+      const label = statusLabel || (newStatus === 'live' ? 'LIVE NOW' : newStatus === 'completed' ? 'Completed' : 'Upcoming');
+      const updatedList = currentList.map(f => {
+        if (f.id === fixtureId) {
+          return {
+            ...f,
+            status: newStatus,
+            statusLabel: label,
+            status_label: label
+          };
+        }
+        return f;
+      });
+      const nextSchedule = { ...prev, [dayNum]: updatedList };
+      localStorage.setItem('aahwan_schedule', JSON.stringify(nextSchedule));
+      localStorage.setItem('AWAHAAN_schedule', JSON.stringify(nextSchedule));
+      saveToCloud({ schedule: nextSchedule });
+      return nextSchedule;
+    });
+  };
+
+  const deleteFixture = (dayNum, fixtureIdOrIndex) => {
+    setSchedule(prev => {
+      const currentList = prev[dayNum] || [];
+      const updatedList = currentList.filter((f, idx) => {
+        if (f.id && f.id === fixtureIdOrIndex) return false;
+        if (idx === fixtureIdOrIndex) return false;
+        return true;
+      });
+      const nextSchedule = { ...prev, [dayNum]: updatedList };
+      localStorage.setItem('aahwan_schedule', JSON.stringify(nextSchedule));
+      localStorage.setItem('AWAHAAN_schedule', JSON.stringify(nextSchedule));
+      saveToCloud({ schedule: nextSchedule });
+      return nextSchedule;
+    });
+  };
+
+  const resetScheduleToDefault = () => {
+    const defaultSchedule = normalizeScheduleStructure(initialSchedule);
+    setSchedule(defaultSchedule);
+    localStorage.setItem('aahwan_schedule', JSON.stringify(defaultSchedule));
+    localStorage.setItem('AWAHAAN_schedule', JSON.stringify(defaultSchedule));
+    saveToCloud({ schedule: defaultSchedule });
+    return defaultSchedule;
   };
 
   // Cryptographic one-way SHA-256 hash helper (Zero plaintext credentials stored in code)
@@ -1849,10 +2115,11 @@ export function AppProvider({ children }) {
     });
   };
 
-  // Sports CRUD Handlers
+  // Sports CRUD & Roster Management Handlers
   const addSport = (newSport) => {
+    const norm = normalizeSport(newSport);
     setSports(prev => {
-      const updated = [newSport, ...prev];
+      const updated = [norm, ...prev.filter(s => s.id !== norm.id)];
       localStorage.setItem('aahwan_sports', JSON.stringify(updated));
       localStorage.setItem('AWAHAAN_sports', JSON.stringify(updated));
       saveToCloud({ sports: updated });
@@ -1862,7 +2129,7 @@ export function AppProvider({ children }) {
 
   const updateSport = (id, updatedData) => {
     setSports(prev => {
-      const updated = prev.map(s => s.id === id ? { ...s, ...updatedData } : s);
+      const updated = prev.map(s => s.id === id ? normalizeSport({ ...s, ...updatedData }) : s);
       localStorage.setItem('aahwan_sports', JSON.stringify(updated));
       localStorage.setItem('AWAHAAN_sports', JSON.stringify(updated));
       saveToCloud({ sports: updated });
@@ -1880,9 +2147,28 @@ export function AppProvider({ children }) {
     });
   };
 
+  const bulkUpdateSports = (updatedSportsList) => {
+    const normList = updatedSportsList.map(normalizeSport).filter(Boolean);
+    setSports(normList);
+    localStorage.setItem('aahwan_sports', JSON.stringify(normList));
+    localStorage.setItem('AWAHAAN_sports', JSON.stringify(normList));
+    saveToCloud({ sports: normList });
+    return normList;
+  };
+
+  const resetSportsToDefault = () => {
+    const defaultRoster = initialSports.map(normalizeSport);
+    setSports(defaultRoster);
+    localStorage.setItem('aahwan_sports', JSON.stringify(defaultRoster));
+    localStorage.setItem('AWAHAAN_sports', JSON.stringify(defaultRoster));
+    saveToCloud({ sports: defaultRoster });
+    return defaultRoster;
+  };
+
   // Equipment Inventory Handlers (Dual-Engine: Supabase Dedicated Tables + Global Settings Sync)
   const addEquipment = async (item) => {
-    const totalQty = Number(item.totalQty ?? item.total_qty ?? item.qty ?? 1);
+    const rawQty = item.totalQty !== undefined ? item.totalQty : (item.total_qty !== undefined ? item.total_qty : item.qty);
+    const totalQty = isNaN(Number(rawQty)) ? 1 : Math.max(0, Number(rawQty));
     const newItem = normalizeEquipmentItem({
       ...item,
       id: item.id || `eq-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
@@ -1896,15 +2182,13 @@ export function AppProvider({ children }) {
       created_at: new Date().toISOString()
     });
 
-    let updatedList = [];
-    setEquipmentList(prev => {
-      updatedList = [newItem, ...prev.filter(e => e.id !== newItem.id)];
-      localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
-      localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
-      return updatedList;
-    });
+    const updatedList = [newItem, ...equipmentList.filter(e => e.id !== newItem.id)];
 
-    // 1. Direct write to Supabase dedicated 'equipment' table (if created)
+    setEquipmentList(updatedList);
+    localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
+    localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
+
+    // 1. Direct write to Supabase dedicated 'equipment' table
     if (supabase) {
       try {
         const { error: tblErr } = await supabase.from('equipment').upsert({
@@ -1934,24 +2218,23 @@ export function AppProvider({ children }) {
   };
 
   const updateEquipment = async (id, updatedData) => {
-    let updatedList = [];
-    let updatedItem = null;
-    setEquipmentList(prev => {
-      updatedList = prev.map(e => {
-        if (e.id === id) {
-          const merged = normalizeEquipmentItem({ ...e, ...updatedData });
-          updatedItem = merged;
-          return merged;
-        }
-        return e;
-      });
-      localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
-      localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
-      return updatedList;
+    const currentItem = equipmentList.find(e => e.id === id) || {};
+    const updatedItem = normalizeEquipmentItem({
+      ...currentItem,
+      ...updatedData,
+      id
     });
 
+    const updatedList = equipmentList.some(e => e.id === id)
+      ? equipmentList.map(e => (e.id === id ? updatedItem : e))
+      : [updatedItem, ...equipmentList];
+
+    setEquipmentList(updatedList);
+    localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
+    localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
+
     // 1. Direct write to Supabase dedicated 'equipment' table
-    if (supabase && updatedItem) {
+    if (supabase) {
       try {
         const { error: tblErr } = await supabase.from('equipment').upsert({
           id: updatedItem.id,
@@ -1979,13 +2262,11 @@ export function AppProvider({ children }) {
   };
 
   const deleteEquipment = async (id) => {
-    let updatedList = [];
-    setEquipmentList(prev => {
-      updatedList = prev.filter(e => e.id !== id);
-      localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
-      localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
-      return updatedList;
-    });
+    const updatedList = equipmentList.filter(e => e.id !== id);
+
+    setEquipmentList(updatedList);
+    localStorage.setItem('aahwan_equipment', JSON.stringify(updatedList));
+    localStorage.setItem('AWAHAAN_equipment', JSON.stringify(updatedList));
 
     // 1. Direct delete from Supabase dedicated 'equipment' table
     if (supabase) {
@@ -2005,6 +2286,37 @@ export function AppProvider({ children }) {
     }
 
     return { success: true };
+  };
+
+  const resetEquipmentToDefault = async () => {
+    const defaultNorm = DEFAULT_EQUIPMENT_ITEMS.map(normalizeEquipmentItem);
+    setEquipmentList(defaultNorm);
+    localStorage.setItem('aahwan_equipment', JSON.stringify(defaultNorm));
+    localStorage.setItem('AWAHAAN_equipment', JSON.stringify(defaultNorm));
+
+    if (supabase) {
+      try {
+        const dbItems = defaultNorm.map(item => ({
+          id: item.id,
+          name: item.name,
+          category: item.category,
+          total_qty: item.totalQty,
+          condition: item.condition,
+          location: item.location,
+          notes: item.notes
+        }));
+        await supabase.from('equipment').upsert(dbItems);
+      } catch (err) {
+        console.warn('resetEquipmentToDefault supabase error:', err);
+      }
+    }
+
+    try {
+      await saveToCloud({ equipmentList: defaultNorm });
+    } catch (e) {
+      console.warn('saveToCloud equipmentList error:', e);
+    }
+    return defaultNorm;
   };
 
   const issueEquipment = async (data) => {
@@ -2039,38 +2351,36 @@ export function AppProvider({ children }) {
       created_at: new Date().toISOString()
     });
 
-    let updatedLogs = [];
-    setEquipmentLogs(prev => {
-      updatedLogs = [newLog, ...prev.filter(l => l.id !== newLog.id)];
-      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
-      localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
-      return updatedLogs;
-    });
+    const updatedLogs = [newLog, ...equipmentLogs.filter(l => l.id !== newLog.id)];
+
+    setEquipmentLogs(updatedLogs);
+    localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
+    localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
 
     // 1. Direct write to Supabase dedicated 'equipment_logs' table
     if (supabase) {
       try {
         const dbLog = {
           id: newLog.id,
-          equipment_id: newLog.equipmentId,
-          equipment_name: newLog.equipmentName,
-          category: newLog.category,
-          borrower_name: newLog.borrowerName,
-          roll_no: newLog.rollNo,
-          branch: newLog.branch,
-          borrower_phone: newLog.borrowerPhone,
-          qty: newLog.qty,
-          status: newLog.status,
-          issue_date: newLog.issueDate,
-          issue_timestamp: newLog.issueTimestamp,
-          expected_return: newLog.expectedReturn,
+          equipment_id: newLog.equipmentId || newLog.equipment_id || '',
+          equipment_name: newLog.equipmentName || newLog.equipment_name || '',
+          category: newLog.category || 'General',
+          borrower_name: newLog.borrowerName || newLog.borrower_name || 'Student Borrower',
+          roll_no: newLog.rollNo || newLog.roll_no || 'N/A',
+          branch: newLog.branch || 'General',
+          borrower_phone: newLog.borrowerPhone || newLog.borrower_phone || '',
+          qty: Number(newLog.qty) || 1,
+          status: newLog.status || 'issued',
+          issue_date: newLog.issueDate || newLog.issue_date || '',
+          issue_timestamp: newLog.issueTimestamp || newLog.issue_timestamp || null,
+          expected_return: newLog.expectedReturn || newLog.expected_return || '',
           expected_return_timestamp: newLog.expectedReturnTimestamp || null,
           returned_count: 0,
           return_date: null,
           return_timestamp: null,
           return_condition: null,
           notes: newLog.notes || '',
-          created_at: newLog.created_at
+          created_at: newLog.created_at || new Date().toISOString()
         };
         const { error: tblErr } = await supabase.from('equipment_logs').upsert(dbLog);
         if (tblErr) console.warn('Supabase equipment_logs table notice:', tblErr.message);
@@ -2101,69 +2411,64 @@ export function AppProvider({ children }) {
       hour12: true
     }));
 
-    let updatedLogs = [];
-    let modifiedLog = null;
-    setEquipmentLogs(prev => {
-      updatedLogs = prev.map(l => {
-        if (l.id === logId) {
-          const totalQtyIssued = Number(l.qty) || 1;
-          const numReturned = Math.min(totalQtyIssued, Number(returnQty) || totalQtyIssued);
-          const isPartial = numReturned < totalQtyIssued;
+    const targetLog = equipmentLogs.find(l => l.id === logId);
+    if (!targetLog) return { success: false, error: 'Log not found' };
 
-          let updated;
-          if (isPartial) {
-            updated = normalizeEquipmentLog({
-              ...l,
-              qty: totalQtyIssued - numReturned,
-              returnedCount: (Number(l.returnedCount) || 0) + numReturned,
-              lastReturnDate: formattedNow,
-              lastReturnTimestamp: now.toISOString(),
-              returnCondition: condition,
-              notes: `${l.notes || ''} [Returned ${numReturned} unit(s) on ${formattedNow}]`.trim()
-            });
-          } else {
-            updated = normalizeEquipmentLog({
-              ...l,
-              status: 'returned',
-              returnedCount: (Number(l.returnedCount) || 0) + numReturned,
-              returnDate: formattedNow,
-              returnTimestamp: now.toISOString(),
-              returnCondition: condition,
-              notes: notes || l.notes || ''
-            });
-          }
-          modifiedLog = updated;
-          return updated;
-        }
-        return l;
+    const totalQtyIssued = Number(targetLog.qty) || 1;
+    const numReturned = Math.min(totalQtyIssued, Number(returnQty) || totalQtyIssued);
+    const isPartial = numReturned < totalQtyIssued;
+
+    let modifiedLog;
+    if (isPartial) {
+      modifiedLog = normalizeEquipmentLog({
+        ...targetLog,
+        qty: totalQtyIssued - numReturned,
+        returnedCount: (Number(targetLog.returnedCount) || 0) + numReturned,
+        lastReturnDate: formattedNow,
+        lastReturnTimestamp: now.toISOString(),
+        returnCondition: condition,
+        notes: `${targetLog.notes || ''} [Returned ${numReturned} unit(s) on ${formattedNow}]`.trim()
       });
-      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
-      localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
-      return updatedLogs;
-    });
+    } else {
+      modifiedLog = normalizeEquipmentLog({
+        ...targetLog,
+        status: 'returned',
+        returnedCount: (Number(targetLog.returnedCount) || 0) + numReturned,
+        returnDate: formattedNow,
+        returnTimestamp: now.toISOString(),
+        returnCondition: condition,
+        notes: notes || targetLog.notes || ''
+      });
+    }
+
+    const updatedLogs = equipmentLogs.map(l => (l.id === logId ? modifiedLog : l));
+
+    setEquipmentLogs(updatedLogs);
+    localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
+    localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
 
     // 1. Direct write to Supabase dedicated 'equipment_logs' table
-    if (supabase && modifiedLog) {
+    if (supabase) {
       try {
         const dbLog = {
           id: modifiedLog.id,
-          equipment_id: modifiedLog.equipmentId,
-          equipment_name: modifiedLog.equipmentName,
-          category: modifiedLog.category,
-          borrower_name: modifiedLog.borrowerName,
-          roll_no: modifiedLog.rollNo,
-          branch: modifiedLog.branch,
-          borrower_phone: modifiedLog.borrowerPhone,
-          qty: modifiedLog.qty,
-          status: modifiedLog.status,
-          issue_date: modifiedLog.issueDate,
-          issue_timestamp: modifiedLog.issueTimestamp,
-          expected_return: modifiedLog.expectedReturn,
+          equipment_id: modifiedLog.equipmentId || modifiedLog.equipment_id || '',
+          equipment_name: modifiedLog.equipmentName || modifiedLog.equipment_name || '',
+          category: modifiedLog.category || 'General',
+          borrower_name: modifiedLog.borrowerName || modifiedLog.borrower_name || 'Student Borrower',
+          roll_no: modifiedLog.rollNo || modifiedLog.roll_no || 'N/A',
+          branch: modifiedLog.branch || 'General',
+          borrower_phone: modifiedLog.borrowerPhone || modifiedLog.borrower_phone || '',
+          qty: Number(modifiedLog.qty) || 1,
+          status: modifiedLog.status || 'returned',
+          issue_date: modifiedLog.issueDate || modifiedLog.issue_date || '',
+          issue_timestamp: modifiedLog.issueTimestamp || modifiedLog.issue_timestamp || null,
+          expected_return: modifiedLog.expectedReturn || modifiedLog.expected_return || '',
           expected_return_timestamp: modifiedLog.expectedReturnTimestamp || null,
-          returned_count: modifiedLog.returnedCount,
-          return_date: modifiedLog.returnDate,
-          return_timestamp: modifiedLog.returnTimestamp,
-          return_condition: modifiedLog.returnCondition,
+          returned_count: Number(modifiedLog.returnedCount ?? modifiedLog.returned_count ?? 0),
+          return_date: modifiedLog.returnDate || modifiedLog.return_date || null,
+          return_timestamp: modifiedLog.returnTimestamp || modifiedLog.return_timestamp || null,
+          return_condition: modifiedLog.returnCondition || modifiedLog.return_condition || null,
           notes: modifiedLog.notes || ''
         };
         const { error: tblErr } = await supabase.from('equipment_logs').upsert(dbLog);
@@ -2184,13 +2489,11 @@ export function AppProvider({ children }) {
   };
 
   const deleteEquipmentLog = async (logId) => {
-    let updatedLogs = [];
-    setEquipmentLogs(prev => {
-      updatedLogs = prev.filter(l => l.id !== logId);
-      localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
-      localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
-      return updatedLogs;
-    });
+    const updatedLogs = equipmentLogs.filter(l => l.id !== logId);
+
+    setEquipmentLogs(updatedLogs);
+    localStorage.setItem('aahwan_equipment_logs', JSON.stringify(updatedLogs));
+    localStorage.setItem('AWAHAAN_equipment_logs', JSON.stringify(updatedLogs));
 
     // 1. Direct delete from Supabase dedicated 'equipment_logs' table
     if (supabase) {
@@ -2230,8 +2533,8 @@ export function AppProvider({ children }) {
       statStreamsCount, setStatStreamsCount,
       statDaysCount, setStatDaysCount,
       dignitaries, setDignitaries, updateDignitary, addDignitary, removeDignitary,
-      sports, setSports, addSport, updateSport, deleteSport,
-      schedule, setSchedule, addScheduleDay, removeScheduleDay, addFixture, deleteFixture,
+      sports, setSports, addSport, updateSport, deleteSport, bulkUpdateSports, resetSportsToDefault,
+      schedule, setSchedule, addScheduleDay, removeScheduleDay, addFixture, updateFixture, updateFixtureStatus, deleteFixture, resetScheduleToDefault,
       leaderboard, setLeaderboard,
       dailyMedals, setDailyMedals, updateDailyBranchMedals,
       teamPointsRule, setTeamPointsRule,
@@ -2242,7 +2545,7 @@ export function AppProvider({ children }) {
       sportWinners, setSportWinners, assignSportWinner, getStandings, findSportWinner, updateSportCategory,
       galleryPhotos, addGalleryPhoto, deleteGalleryPhoto,
       registrations, addRegistration, deleteRegistration, bulkDeleteRegistrations,
-      equipmentList, addEquipment, updateEquipment, deleteEquipment,
+      equipmentList, addEquipment, updateEquipment, deleteEquipment, resetEquipmentToDefault,
       equipmentLogs, issueEquipment, returnEquipment, deleteEquipmentLog,
       viewMode, setViewMode,
       isAdminLoggedIn,

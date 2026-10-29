@@ -42,6 +42,7 @@ export default function EquipmentStockTab({ setActiveTab }) {
     addEquipment, 
     updateEquipment, 
     deleteEquipment, 
+    resetEquipmentToDefault,
     equipmentLogs,
     issueEquipment,
     returnEquipment,
@@ -52,43 +53,6 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastNotification, setToastNotification] = useState(null);
-
-  // Auto-fetch fresh equipment data directly from database on mount and poll every 15s
-  useEffect(() => {
-    let isMounted = true;
-    const fetchFresh = async () => {
-      if (refreshCloudData) {
-        setIsRefreshing(true);
-        try {
-          await refreshCloudData();
-        } catch (err) {
-          console.warn('Failed to load fresh equipment data from database:', err);
-        } finally {
-          if (isMounted) setIsRefreshing(false);
-        }
-      }
-    };
-
-    fetchFresh();
-
-    const interval = setInterval(() => {
-      if (refreshCloudData && !isRefreshing) {
-        refreshCloudData();
-      }
-    }, 15000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
-
-  const showToast = (text, type = 'success') => {
-    setToastNotification({ text, type });
-    setTimeout(() => {
-      setToastNotification(prev => (prev?.text === text ? null : prev));
-    }, 4000);
-  };
 
   // Search & Filtering State
   const [searchTerm, setSearchTerm] = useState('');
@@ -155,6 +119,43 @@ export default function EquipmentStockTab({ setActiveTab }) {
     notes: ''
   });
 
+  const showToast = (text, type = 'success') => {
+    setToastNotification({ text, type });
+    setTimeout(() => {
+      setToastNotification(prev => (prev?.text === text ? null : prev));
+    }, 4000);
+  };
+
+  // Auto-fetch fresh equipment data directly from database on mount and poll every 60s
+  useEffect(() => {
+    let isMounted = true;
+    const fetchFresh = async () => {
+      if (refreshCloudData) {
+        setIsRefreshing(true);
+        try {
+          await refreshCloudData();
+        } catch (err) {
+          console.warn('Failed to load fresh equipment data from database:', err);
+        } finally {
+          if (isMounted) setIsRefreshing(false);
+        }
+      }
+    };
+
+    fetchFresh();
+
+    const interval = setInterval(() => {
+      if (refreshCloudData && !isRefreshing && !inlineEditingId) {
+        refreshCloudData();
+      }
+    }, 60000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [inlineEditingId]);
+
   // Save custom categories to local storage
   useEffect(() => {
     localStorage.setItem('aahwan_custom_sport_categories', JSON.stringify(customCategories));
@@ -188,7 +189,7 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
   // Metric Computations
   const totalItemsCount = equipmentList.length;
-  const totalPhysicalUnits = equipmentList.reduce((acc, curr) => acc + (Number(curr.totalQty) || 0), 0);
+  const totalPhysicalUnits = equipmentList.reduce((acc, curr) => acc + (Number(curr.totalQty ?? curr.total_qty) || 0), 0);
   const totalIssuedUnits = activeIssuedLogs.reduce((acc, curr) => acc + (Number(curr.qty) || 0), 0);
   const totalAvailableUnits = Math.max(0, totalPhysicalUnits - totalIssuedUnits);
   
@@ -201,9 +202,13 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
     equipmentList.forEach(item => {
       const issued = activeIssuedLogs
-        .filter(l => l.equipmentId === item.id)
+        .filter(l => 
+          (l.equipmentId || l.equipment_id) === item.id || 
+          (l.equipmentName && item.name && l.equipmentName.toLowerCase().trim() === item.name.toLowerCase().trim())
+        )
         .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-      const avail = Math.max(0, (Number(item.totalQty) || 0) - issued);
+      const total = Number(item.totalQty !== undefined ? item.totalQty : item.total_qty) || 0;
+      const avail = Math.max(0, total - issued);
 
       if (issued > 0) loanedItemsCount++;
       if (avail === 0) outCount++;
@@ -226,8 +231,9 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
   // Quick Inline Quantity Adjustment (+ / -)
   const handleQuickQtyChange = async (item, delta) => {
-    const current = Number(item.totalQty ?? item.total_qty) || 0;
-    const newQty = Math.max(1, current + delta);
+    if (!item) return;
+    const current = Number(item.totalQty !== undefined ? item.totalQty : item.total_qty) || 0;
+    const newQty = Math.max(0, current + delta);
     try {
       await updateEquipment(item.id, { ...item, totalQty: newQty, total_qty: newQty });
       showToast(`Updated ${item.name} stock to ${newQty}. Synced to database.`);
@@ -238,8 +244,12 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
   // Save Inline Direct Edit
   const handleSaveInlineQty = async (item) => {
+    if (!item) {
+      setInlineEditingId(null);
+      return;
+    }
     const parsed = parseInt(inlineQtyValue, 10);
-    if (!isNaN(parsed) && parsed >= 1) {
+    if (!isNaN(parsed) && parsed >= 0) {
       try {
         await updateEquipment(item.id, { ...item, totalQty: parsed, total_qty: parsed });
         showToast(`Saved ${item.name} stock: ${parsed}. Synced to database.`);
@@ -281,9 +291,9 @@ export default function EquipmentStockTab({ setActiveTab }) {
 
       // Stock Status Match
       const issued = activeIssuedLogs
-        .filter(l => l.equipmentId === item.id)
+        .filter(l => (l.equipmentId || l.equipment_id) === item.id)
         .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-      const avail = Math.max(0, (Number(item.totalQty) || 0) - issued);
+      const avail = Math.max(0, (Number(item.totalQty ?? item.total_qty) || 0) - issued);
 
       let matchesStatus = true;
       if (stockStatusFilter === 'available') matchesStatus = avail > 2;
@@ -316,20 +326,20 @@ export default function EquipmentStockTab({ setActiveTab }) {
         return sortDirection === 'asc' ? valA.localeCompare(valB) : valB.localeCompare(valA);
       }
       if (sortField === 'totalQty') {
-        valA = Number(a.totalQty) || 0;
-        valB = Number(b.totalQty) || 0;
+        valA = Number(a.totalQty ?? a.total_qty) || 0;
+        valB = Number(b.totalQty ?? b.total_qty) || 0;
         return sortDirection === 'asc' ? valA - valB : valB - valA;
       }
       if (sortField === 'loaned') {
-        valA = activeIssuedLogs.filter(l => l.equipmentId === a.id).reduce((s, x) => s + (Number(x.qty) || 0), 0);
-        valB = activeIssuedLogs.filter(l => l.equipmentId === b.id).reduce((s, x) => s + (Number(x.qty) || 0), 0);
+        valA = activeIssuedLogs.filter(l => (l.equipmentId || l.equipment_id) === a.id).reduce((s, x) => s + (Number(x.qty) || 0), 0);
+        valB = activeIssuedLogs.filter(l => (l.equipmentId || l.equipment_id) === b.id).reduce((s, x) => s + (Number(x.qty) || 0), 0);
         return sortDirection === 'asc' ? valA - valB : valB - valA;
       }
       if (sortField === 'available') {
-        const issuedA = activeIssuedLogs.filter(l => l.equipmentId === a.id).reduce((s, x) => s + (Number(x.qty) || 0), 0);
-        const issuedB = activeIssuedLogs.filter(l => l.equipmentId === b.id).reduce((s, x) => s + (Number(x.qty) || 0), 0);
-        valA = Math.max(0, (Number(a.totalQty) || 0) - issuedA);
-        valB = Math.max(0, (Number(b.totalQty) || 0) - issuedB);
+        const issuedA = activeIssuedLogs.filter(l => (l.equipmentId || l.equipment_id) === a.id).reduce((s, x) => s + (Number(x.qty) || 0), 0);
+        const issuedB = activeIssuedLogs.filter(l => (l.equipmentId || l.equipment_id) === b.id).reduce((s, x) => s + (Number(x.qty) || 0), 0);
+        valA = Math.max(0, (Number(a.totalQty ?? a.total_qty) || 0) - issuedA);
+        valB = Math.max(0, (Number(b.totalQty ?? b.total_qty) || 0) - issuedB);
         return sortDirection === 'asc' ? valA - valB : valB - valA;
       }
 
@@ -409,14 +419,14 @@ export default function EquipmentStockTab({ setActiveTab }) {
     const headers = ['Item ID', 'Gear Name', 'Discipline', 'Total Units', 'Active Loans', 'Available Units', 'Condition', 'Storage Location', 'Notes'];
     const rows = itemsToExport.map(item => {
       const issued = activeIssuedLogs
-        .filter(l => l.equipmentId === item.id)
+        .filter(l => (l.equipmentId || l.equipment_id) === item.id)
         .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-      const avail = Math.max(0, (Number(item.totalQty) || 0) - issued);
+      const avail = Math.max(0, (Number(item.totalQty ?? item.total_qty) || 0) - issued);
       return [
         `"${item.id}"`,
         `"${(item.name || '').replace(/"/g, '""')}"`,
         `"${(item.category || '').replace(/"/g, '""')}"`,
-        item.totalQty || 0,
+        Number(item.totalQty ?? item.total_qty) || 0,
         issued,
         avail,
         `"${(item.condition || 'Good Condition').replace(/"/g, '""')}"`,
@@ -460,7 +470,7 @@ export default function EquipmentStockTab({ setActiveTab }) {
     setNewEquip({
       name: item.name || '',
       category: item.category || 'Cricket',
-      totalQty: item.totalQty || 1,
+      totalQty: Number(item.totalQty ?? item.total_qty) || 1,
       condition: item.condition || 'Good Condition',
       location: item.location || 'Main Sports Store',
       notes: item.notes || ''
@@ -471,9 +481,9 @@ export default function EquipmentStockTab({ setActiveTab }) {
   // Open Quick Issue Modal
   const openQuickIssue = (item) => {
     const issued = activeIssuedLogs
-      .filter(l => l.equipmentId === item.id)
+      .filter(l => (l.equipmentId || l.equipment_id) === item.id)
       .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-    const avail = Math.max(0, (Number(item.totalQty) || 0) - issued);
+    const avail = Math.max(0, (Number(item.totalQty ?? item.total_qty) || 0) - issued);
 
     if (avail <= 0) {
       alert(`"${item.name}" has 0 units available in stock. All are currently loaned out!`);
@@ -606,10 +616,14 @@ export default function EquipmentStockTab({ setActiveTab }) {
     const categoryObj = allCategoryObjects.find(c => c.id === item.category) || { icon: '🏆', name: item.category || 'General' };
     
     // Active loans for this specific equipment item
-    const itemLoans = activeIssuedLogs.filter(l => l.equipmentId === item.id);
+    const itemLoans = activeIssuedLogs.filter(l => 
+      (l.equipmentId || l.equipment_id) === item.id || 
+      (l.equipmentName && item.name && l.equipmentName.toLowerCase().trim() === item.name.toLowerCase().trim())
+    );
     const issuedForThis = itemLoans.reduce((a, b) => a + (Number(b.qty) || 0), 0);
     
-    const availForThis = Math.max(0, (Number(item.totalQty) || 0) - issuedForThis);
+    const totalUnitsForThis = Number(item.totalQty !== undefined ? item.totalQty : item.total_qty) || 0;
+    const availForThis = Math.max(0, totalUnitsForThis - issuedForThis);
     const isLow = availForThis > 0 && availForThis <= 2;
     const isOut = availForThis === 0;
 
@@ -690,12 +704,12 @@ export default function EquipmentStockTab({ setActiveTab }) {
                 <span 
                   onClick={() => {
                     setInlineEditingId(item.id);
-                    setInlineQtyValue(String(item.totalQty || 1));
+                    setInlineQtyValue(String(item.totalQty ?? item.total_qty ?? 1));
                   }}
                   className="w-7 text-center font-bold text-slate-900 hover:bg-amber-100 rounded cursor-text"
                   title="Click to edit quantity"
                 >
-                  {item.totalQty}
+                  {item.totalQty ?? item.total_qty ?? 0}
                 </span>
                 <button
                   onClick={() => handleQuickQtyChange(item, 1)}
@@ -849,9 +863,13 @@ export default function EquipmentStockTab({ setActiveTab }) {
   // Render function for Mobile Card (shared between flat list and grouped layouts)
   const renderMobileCard = (item) => {
     const categoryObj = allCategoryObjects.find(c => c.id === item.category) || { icon: '🏆', name: item.category || 'General' };
-    const itemLoans = activeIssuedLogs.filter(l => l.equipmentId === item.id);
+    const itemLoans = activeIssuedLogs.filter(l => 
+      (l.equipmentId || l.equipment_id) === item.id || 
+      (l.equipmentName && item.name && l.equipmentName.toLowerCase().trim() === item.name.toLowerCase().trim())
+    );
     const issuedForThis = itemLoans.reduce((a, b) => a + (Number(b.qty) || 0), 0);
-    const availForThis = Math.max(0, (Number(item.totalQty) || 0) - issuedForThis);
+    const totalUnitsForThis = Number(item.totalQty !== undefined ? item.totalQty : item.total_qty) || 0;
+    const availForThis = Math.max(0, totalUnitsForThis - issuedForThis);
     const isLow = availForThis > 0 && availForThis <= 2;
     const isOut = availForThis === 0;
     const isExpanded = expandedRowIds.includes(item.id);
@@ -900,7 +918,7 @@ export default function EquipmentStockTab({ setActiveTab }) {
           <div className="flex items-center gap-3 text-[0.68rem] text-slate-600 font-bold">
             <span>In Store: <strong className="text-emerald-700 font-black">{availForThis}</strong></span>
             <span>•</span>
-            <span>Total: <strong className="text-slate-900 font-mono">{item.totalQty}</strong></span>
+            <span>Total: <strong className="text-slate-900 font-mono">{item.totalQty ?? item.total_qty ?? 0}</strong></span>
           </div>
 
           {issuedForThis > 0 ? (
@@ -933,32 +951,48 @@ export default function EquipmentStockTab({ setActiveTab }) {
           </button>
 
           {/* Stepper for stock counting */}
-          <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 font-mono text-xs shadow-2xs">
-            <button
-              onClick={() => handleQuickQtyChange(item, -1)}
-              className="px-2 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-white rounded-lg cursor-pointer transition"
-              title="-1 unit"
-            >
-              <Minus size={12} />
-            </button>
-            <span 
-              onClick={() => {
-                setInlineEditingId(item.id);
-                setInlineQtyValue(String(item.totalQty || 1));
+          {inlineEditingId === item.id ? (
+            <input
+              type="number"
+              min="1"
+              autoFocus
+              value={inlineQtyValue}
+              onChange={(e) => setInlineQtyValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveInlineQty(item);
+                if (e.key === 'Escape') setInlineEditingId(null);
               }}
-              className="w-8 text-center font-bold text-slate-900 cursor-text"
-              title="Click to edit quantity"
-            >
-              {item.totalQty}
-            </span>
-            <button
-              onClick={() => handleQuickQtyChange(item, 1)}
-              className="px-2 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-white rounded-lg cursor-pointer transition"
-              title="+1 unit"
-            >
-              <Plus size={12} />
-            </button>
-          </div>
+              onBlur={() => handleSaveInlineQty(item)}
+              className="w-16 px-1.5 py-1 text-center text-xs font-black bg-white border border-amber-500 rounded-xl text-slate-900 focus:outline-none shadow-xs"
+            />
+          ) : (
+            <div className="inline-flex items-center bg-slate-100 p-0.5 rounded-xl border border-slate-200 font-mono text-xs shadow-2xs">
+              <button
+                onClick={() => handleQuickQtyChange(item, -1)}
+                className="px-2 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-white rounded-lg cursor-pointer transition"
+                title="-1 unit"
+              >
+                <Minus size={12} />
+              </button>
+              <span 
+                onClick={() => {
+                  setInlineEditingId(item.id);
+                  setInlineQtyValue(String(item.totalQty ?? item.total_qty ?? 1));
+                }}
+                className="w-8 text-center font-bold text-slate-900 cursor-text"
+                title="Click to edit quantity"
+              >
+                {item.totalQty ?? item.total_qty ?? 0}
+              </span>
+              <button
+                onClick={() => handleQuickQtyChange(item, 1)}
+                className="px-2 py-1.5 text-slate-700 hover:text-slate-900 hover:bg-white rounded-lg cursor-pointer transition"
+                title="+1 unit"
+              >
+                <Plus size={12} />
+              </button>
+            </div>
+          )}
 
           {/* Edit / Delete Icons */}
           <div className="flex items-center gap-0.5 shrink-0">
@@ -1143,6 +1177,22 @@ export default function EquipmentStockTab({ setActiveTab }) {
           >
             <Printer size={12} className="text-slate-500" />
             <span className="hidden sm:inline">Print</span>
+          </button>
+
+          <button
+            onClick={async () => {
+              if (window.confirm("Restore official GCEK sports equipment stock catalog? This will reload the official gear inventory (including Badminton Rackets & Shuttlecocks) with standard initial counts.")) {
+                if (resetEquipmentToDefault) {
+                  await resetEquipmentToDefault();
+                  showToast("Official sports equipment catalog restored & synced to database!");
+                }
+              }
+            }}
+            className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-lg border border-slate-200 shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
+            title="Restore official equipment roster (Badminton, Cricket, Football, etc.)"
+          >
+            <RotateCcw size={12} className="text-amber-600" />
+            <span className="hidden sm:inline">Reset Stock</span>
           </button>
 
           <button

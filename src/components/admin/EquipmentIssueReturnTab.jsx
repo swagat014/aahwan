@@ -128,43 +128,6 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [toastNotification, setToastNotification] = useState(null);
 
-  // Auto-fetch fresh equipment data directly from database on mount and poll every 15s
-  React.useEffect(() => {
-    let isMounted = true;
-    const fetchFresh = async () => {
-      if (refreshCloudData) {
-        setIsRefreshing(true);
-        try {
-          await refreshCloudData();
-        } catch (err) {
-          console.warn('Failed to load fresh equipment data from database:', err);
-        } finally {
-          if (isMounted) setIsRefreshing(false);
-        }
-      }
-    };
-
-    fetchFresh();
-
-    const interval = setInterval(() => {
-      if (refreshCloudData && !isRefreshing) {
-        refreshCloudData();
-      }
-    }, 15000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
-
-  const showToast = (text, type = 'success') => {
-    setToastNotification({ text, type });
-    setTimeout(() => {
-      setToastNotification(prev => (prev?.text === text ? null : prev));
-    }, 4000);
-  };
-
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'issued', 'returned', 'overdue'
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -197,6 +160,43 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
 
   // Dossier Modal State (inspect detailed record)
   const [dossierLog, setDossierLog] = useState(null);
+
+  const showToast = (text, type = 'success') => {
+    setToastNotification({ text, type });
+    setTimeout(() => {
+      setToastNotification(prev => (prev?.text === text ? null : prev));
+    }, 4000);
+  };
+
+  // Auto-fetch fresh equipment data directly from database on mount and poll every 60s
+  React.useEffect(() => {
+    let isMounted = true;
+    const fetchFresh = async () => {
+      if (refreshCloudData) {
+        setIsRefreshing(true);
+        try {
+          await refreshCloudData();
+        } catch (err) {
+          console.warn('Failed to load fresh equipment data from database:', err);
+        } finally {
+          if (isMounted) setIsRefreshing(false);
+        }
+      }
+    };
+
+    fetchFresh();
+
+    const interval = setInterval(() => {
+      if (refreshCloudData && !isRefreshing && !showIssueModal && !returnLog) {
+        refreshCloudData();
+      }
+    }, 60000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [showIssueModal, returnLog]);
 
   // Available sport categories from equipmentList
   const sportCategories = useMemo(() => {
@@ -257,9 +257,13 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
     if (!targetEquip) return;
 
     const issuedUnitsForThis = activeIssuedLogs
-      .filter(l => (l.equipmentId || l.equipment_id) === targetEquip.id)
+      .filter(l => 
+        (l.equipmentId || l.equipment_id) === targetEquip.id || 
+        (l.equipmentName && targetEquip.name && l.equipmentName.toLowerCase().trim() === targetEquip.name.toLowerCase().trim())
+      )
       .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-    const availableForThis = Math.max(0, (Number(targetEquip.totalQty ?? targetEquip.total_qty) || 0) - issuedUnitsForThis);
+    const totalUnits = Number(targetEquip.totalQty !== undefined ? targetEquip.totalQty : targetEquip.total_qty) || 0;
+    const availableForThis = Math.max(0, totalUnits - issuedUnitsForThis);
 
     if (Number(issueData.qty) > availableForThis) {
       alert(`Cannot issue ${issueData.qty} units. Only ${availableForThis} available in store stock!`);
@@ -1294,9 +1298,13 @@ export default function EquipmentIssueReturnTab({ setActiveTab }) {
                 >
                   {filteredModalEquipment.map(item => {
                     const issuedForThis = activeIssuedLogs
-                      .filter(l => (l.equipmentId || l.equipment_id) === item.id)
+                      .filter(l => 
+                        (l.equipmentId || l.equipment_id) === item.id || 
+                        (l.equipmentName && item.name && l.equipmentName.toLowerCase().trim() === item.name.toLowerCase().trim())
+                      )
                       .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-                    const avail = Math.max(0, (Number(item.totalQty ?? item.total_qty) || 0) - issuedForThis);
+                    const totalUnits = Number(item.totalQty !== undefined ? item.totalQty : item.total_qty) || 0;
+                    const avail = Math.max(0, totalUnits - issuedForThis);
                     return (
                       <option key={item.id} value={item.id} disabled={avail === 0}>
                         [{item.category}] {item.name} — ({avail} units available)

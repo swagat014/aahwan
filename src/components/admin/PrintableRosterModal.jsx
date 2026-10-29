@@ -44,7 +44,7 @@ export default function PrintableRosterModal({ sportTitle, onClose }) {
     sportWinners = {},
     assignSportWinner,
     athleticsPointsRule = { gold: 5, silver: 3, bronze: 1 },
-    teamPointsRule = { gold: 8, silver: 5, bronze: 0 }
+    teamPointsRule = { gold: 7, silver: 5, bronze: 0 }
   } = useApp();
 
   // Internal interactive controls state

@@ -66,7 +66,7 @@ export default function EquipmentInventoryTab() {
 
   // Calculate Summary Stats
   const totalItems = equipmentList.length;
-  const totalUnits = equipmentList.reduce((acc, curr) => acc + (Number(curr.totalQty) || 0), 0);
+  const totalUnits = equipmentList.reduce((acc, curr) => acc + (Number(curr.totalQty ?? curr.total_qty) || 0), 0);
   
   // Calculate total currently issued units from active issue logs
   const activeIssuedLogs = equipmentLogs.filter(log => log.status === 'issued');
@@ -123,9 +123,9 @@ export default function EquipmentInventoryTab() {
 
     // Check available stock
     const issuedUnitsForThis = activeIssuedLogs
-      .filter(l => l.equipmentId === targetEquip.id)
+      .filter(l => (l.equipmentId || l.equipment_id) === targetEquip.id)
       .reduce((a, b) => a + (Number(b.qty) || 0), 0);
-    const availableForThis = Math.max(0, targetEquip.totalQty - issuedUnitsForThis);
+    const availableForThis = Math.max(0, (Number(targetEquip.totalQty ?? targetEquip.total_qty) || 0) - issuedUnitsForThis);
 
     if (Number(issueData.qty) > availableForThis) {
       alert(`Cannot issue ${issueData.qty} units. Only ${availableForThis} available in store!`);

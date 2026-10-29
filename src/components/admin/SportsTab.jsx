@@ -36,9 +36,17 @@ import { isTeamSportTitle, getTeamSquadSize } from '../StudentRegistrationModal'
 
 export default function SportsTab() {
   const { 
-    sports, addSport, updateSport, deleteSport, updateSportCategory,
-    teamSquadSizes = {}, updateTeamSquadSize, DEFAULT_TEAM_SQUAD_SIZES 
+    sports, addSport, updateSport, deleteSport, updateSportCategory, bulkUpdateSports, resetSportsToDefault,
+    teamSquadSizes = {}, updateTeamSquadSize, DEFAULT_TEAM_SQUAD_SIZES,
+    teamPointsRule = { gold: 7, silver: 5, bronze: 0 },
+    athleticsPointsRule = { gold: 5, silver: 3, bronze: 1 }
   } = useApp();
+
+  const teamGoldPts = teamPointsRule?.gold ?? 7;
+  const teamSilverPts = teamPointsRule?.silver ?? 5;
+  const athGoldPts = athleticsPointsRule?.gold ?? 5;
+  const athSilverPts = athleticsPointsRule?.silver ?? 3;
+  const athBronzePts = athleticsPointsRule?.bronze ?? 1;
   
   // UI States
   const [toastMsg, setToastMsg] = useState('');
@@ -197,15 +205,15 @@ export default function SportsTab() {
     );
   };
 
-  // Bulk Operations
+  // Bulk Operations (Batched atomic update and cloud sync)
   const handleBulkDivisionChange = (newDivision) => {
     let divName = 'Boys & Girls Divisions';
     if (newDivision === 'boys') divName = 'Boys Division Only';
     if (newDivision === 'girls') divName = 'Girls Division Only';
 
-    selectedSportIds.forEach(id => {
-      updateSport(id, { division: newDivision, divisionName: divName });
-    });
+    const selectedSet = new Set(selectedSportIds);
+    const updated = sports.map(s => selectedSet.has(s.id) ? { ...s, division: newDivision, divisionName: divName } : s);
+    bulkUpdateSports(updated);
     setToastMsg(`Updated division for ${selectedSportIds.length} sports`);
     setSelectedSportIds([]);
     setTimeout(() => setToastMsg(''), 2500);
@@ -214,10 +222,21 @@ export default function SportsTab() {
   const handleBulkDelete = () => {
     if (selectedSportIds.length === 0) return;
     if (confirm(`Permanently remove ${selectedSportIds.length} selected disciplines?`)) {
-      selectedSportIds.forEach(id => deleteSport(id));
+      const selectedSet = new Set(selectedSportIds);
+      const updated = sports.filter(s => !selectedSet.has(s.id));
+      bulkUpdateSports(updated);
       setSelectedSportIds([]);
       setToastMsg('Selected disciplines removed');
       setTimeout(() => setToastMsg(''), 2500);
+    }
+  };
+
+  // Restore Official Sports Disciplines Roster
+  const handleResetSportsRoster = () => {
+    if (window.confirm("Restore official GCEK sports roster? This will reload all 21 approved championship tournament disciplines.")) {
+      resetSportsToDefault();
+      setToastMsg("Official sports disciplines roster restored & synced live!");
+      setTimeout(() => setToastMsg(''), 3000);
     }
   };
 
@@ -238,7 +257,6 @@ export default function SportsTab() {
     if (newCategory === 'team') categoryName = 'Team Sport';
     if (newCategory === 'indoor') categoryName = 'Indoor Sport';
 
-    updateSportCategory(sportId, newCategory);
     updateSport(sportId, { category: newCategory, categoryName });
     setToastMsg(`Updated discipline type to "${categoryName}"`);
     setTimeout(() => setToastMsg(''), 2500);
@@ -354,7 +372,7 @@ export default function SportsTab() {
     const rows = filteredSports.map(s => [
       `"${s.id}"`,
       `"${(s.title || '').replace(/"/g, '""')}"`,
-      `"${s.category === 'team' ? 'Team Sport (8/5 Pts)' : 'Individual Track & Field (5/3/1 Pts)'}"`,
+      `"${s.category === 'team' ? `Team Sport (${teamGoldPts}/${teamSilverPts} Pts)` : `Individual Track & Field (${athGoldPts}/${athSilverPts}/${athBronzePts} Pts)`}"`,
       `"${s.division === 'boys' ? 'Boys Only' : s.division === 'girls' ? 'Girls Only' : 'Both Boys & Girls'}"`,
       `"${(s.venue || '').replace(/"/g, '""')}"`,
       `"${(s.time || '').replace(/"/g, '""')}"`,
@@ -398,7 +416,7 @@ export default function SportsTab() {
             </h3>
           </div>
           <p className="text-[0.68rem] font-semibold text-slate-500 mt-0.5 ml-8">
-            Manage championship roster, gender divisions, point weighting rules (5/3/1 vs 8/5), venues, and official rulebooks.
+            Manage championship roster, gender divisions, point weighting rules ({athGoldPts}/{athSilverPts}/{athBronzePts} vs {teamGoldPts}/{teamSilverPts}), venues, and official rulebooks.
           </p>
         </div>
 
@@ -443,6 +461,15 @@ export default function SportsTab() {
           >
             <Download size={13} className="text-emerald-600" />
             <span className="hidden sm:inline">Export CSV</span>
+          </button>
+
+          <button
+            onClick={handleResetSportsRoster}
+            title="Restore 21 Official Championship Sports Disciplines"
+            className="px-2.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 hover:border-slate-300 shadow-2xs flex items-center gap-1.5 transition cursor-pointer"
+          >
+            <RotateCcw size={13} className="text-blue-600" />
+            <span className="hidden sm:inline">Reset Roster</span>
           </button>
 
           <button
@@ -505,7 +532,7 @@ export default function SportsTab() {
             <span className="text-xs">⚽</span>
           </div>
           <div className="text-lg font-black text-emerald-600 mt-0.5">{teamCount}</div>
-          <p className="text-[0.58rem] font-bold text-emerald-600 truncate">8/5 Pts Rule</p>
+          <p className="text-[0.58rem] font-bold text-emerald-600 truncate">{teamGoldPts}/{teamSilverPts} Pts Rule</p>
         </button>
 
         {/* Tile 4: Indoor & Rackets */}
@@ -1114,8 +1141,8 @@ export default function SportsTab() {
                                 : 'bg-cyan-50 text-cyan-800 border-cyan-200'
                             }`}
                           >
-                            <option value="athletics">🏃 Individual (5/3/1 Pts)</option>
-                            <option value="team">⚽ Team Sport (8/5 Pts)</option>
+                            <option value="athletics">🏃 Individual ({athGoldPts}/{athSilverPts}/{athBronzePts} Pts)</option>
+                            <option value="team">⚽ Team Sport ({teamGoldPts}/{teamSilverPts} Pts)</option>
                           </select>
                         </td>
 
@@ -1379,8 +1406,8 @@ export default function SportsTab() {
                       onChange={(e) => handleCategoryChange(sport.id, e.target.value)}
                       className="w-full px-1.5 py-1 bg-slate-50 border border-slate-200 rounded text-slate-800 font-bold focus:outline-none focus:border-blue-500"
                     >
-                      <option value="athletics">🏃 5/3/1 Pts</option>
-                      <option value="team">⚽ 8/5 Pts</option>
+                      <option value="athletics">🏃 {athGoldPts}/{athSilverPts}/{athBronzePts} Pts</option>
+                      <option value="team">⚽ {teamGoldPts}/{teamSilverPts} Pts</option>
                     </select>
                   </div>
 
@@ -1665,8 +1692,8 @@ export default function SportsTab() {
                     onChange={(e) => setSportForm({ ...sportForm, category: e.target.value })}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-bold text-xs focus:outline-none focus:border-blue-500"
                   >
-                    <option value="athletics">Track & Field (5/3/1 Pts)</option>
-                    <option value="team">Major Team Sport (8/5 Pts)</option>
+                    <option value="athletics">Track & Field ({athGoldPts}/{athSilverPts}/{athBronzePts} Pts)</option>
+                    <option value="team">Major Team Sport ({teamGoldPts}/{teamSilverPts} Pts)</option>
                     <option value="indoor">Indoor & Rackets</option>
                   </select>
                 </div>
